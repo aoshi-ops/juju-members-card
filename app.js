@@ -62,7 +62,7 @@ let session = null;
 let state = { busy: false, message: "", error: "" };
 
 const app = document.querySelector("#app");
-const scriptUrl = new URL(document.currentScript.src);
+const scriptUrl = new URL(import.meta.url);
 const BASE_PATH = scriptUrl.pathname.replace(/\/app\.js$/, "").replace(/\/$/, "");
 const cfg = () => ({
   url: localStorage.getItem("SUPABASE_URL") || "",
