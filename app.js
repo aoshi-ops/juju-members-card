@@ -189,7 +189,9 @@ async function ensureUserProfile(authUser) {
   const pending = readPendingRegistration();
   const payloadSource = pending?.email === authUser.email ? pending : profileFromAuthMetadata(authUser);
   if (!payloadSource) {
-    throw new Error("会員プロフィールがまだ作成されていません。会員登録フォームから登録情報を送信してください。");
+    const error = new Error("会員プロフィールがまだ作成されていません。会員証に表示するプロフィールを登録してください。");
+    error.code = "PROFILE_REQUIRED";
+    throw error;
   }
 
   const payload = { ...payloadSource, auth_user_id: authUser.id, email: authUser.email };
@@ -343,7 +345,6 @@ async function handleLogin(event) {
     return;
   }
   state = { busy: true, message: "", error: "" };
-  paintShell(await viewLogin());
   try {
     if (!supabase) throw new Error("Supabase URL と anon key を設定してください。");
     const { error } = await supabase.auth.signInWithPassword({
@@ -356,7 +357,7 @@ async function handleLogin(event) {
       try {
         await ensureUserProfile(current.user);
       } catch (profileError) {
-        if (profileError.message.includes("会員プロフィール")) {
+        if (profileError.code === "PROFILE_REQUIRED") {
           state = { busy: false, message: "ログインしました。会員証に表示するプロフィールを登録してください。", error: "" };
           navigate("/complete-profile");
           return;
@@ -582,7 +583,7 @@ async function viewLogin() {
         <form data-form="login">
           <label>メールアドレス<input name="email" type="email" required autocomplete="email" /></label>
           <label>パスワード<input name="password" type="password" required autocomplete="current-password" /></label>
-          <button class="primary" type="submit" data-action="login-user" ${state.busy ? "disabled" : ""}>ログイン</button>
+          <button class="primary" type="button" data-action="login-user" ${state.busy ? "disabled" : ""}>ログイン</button>
         </form>
         <div class="auth-links">
           <button data-link="/register">会員登録</button>
@@ -608,7 +609,7 @@ function viewAdminLogin() {
         <form data-form="admin-login">
           <label>スタッフID<input name="staff_id" required autocomplete="username" /></label>
           <label>パスワード<input name="password" type="password" required autocomplete="current-password" /></label>
-          <button class="primary" type="submit" data-action="admin-login">管理画面を開く</button>
+          <button class="primary" type="button" data-action="admin-login">管理画面を開く</button>
         </form>
         <div class="auth-links">
           <button data-link="/login">ユーザーログイン</button>
@@ -637,7 +638,7 @@ function viewRegister() {
           <label>性別<select name="gender" required><option>男性</option><option>女性</option><option>その他</option><option selected>回答しない</option></select></label>
           <label class="check"><input name="birthday_visible" type="checkbox" checked /> 会員カードに誕生日を表示</label>
           <p class="form-note">本名、性別、年齢は会員カード表面には表示されません。スタッフ管理画面でのみ確認します。</p>
-          <button class="primary" type="submit" data-action="register-member">登録して会員証へ</button>
+          <button class="primary" type="button" data-action="register-member">登録して会員証へ</button>
         </form>
         <button data-link="/login">ログインへ</button>
       </section>
@@ -664,7 +665,7 @@ async function viewCompleteProfile() {
           <label>性別<select name="gender" required>${["男性", "女性", "その他", "回答しない"].map((gender) => `<option ${gender === (pending.gender || "回答しない") ? "selected" : ""}>${gender}</option>`).join("")}</select></label>
           <label class="check"><input name="birthday_visible" type="checkbox" ${pending.birthday_visible === false ? "" : "checked"} /> 会員カードに誕生日を表示</label>
           <p class="form-note">保存すると public.users に会員情報が作られ、スタッフ管理アプリの登録者一覧に反映されます。</p>
-          <button class="primary" type="submit" data-action="complete-profile">保存して会員証へ</button>
+          <button class="primary" type="button" data-action="complete-profile">保存して会員証へ</button>
         </form>
       </section>
     </main>
@@ -785,7 +786,7 @@ function viewSettings() {
       <form data-form="config">
         <label>Supabase URL<input name="url" value="${url}" placeholder="https://xxxx.supabase.co" /></label>
         <label>Supabase anon key<input name="anon" value="${anon}" placeholder="eyJ..." /></label>
-        <button class="primary mobile-save" type="submit" data-action="save-config">保存</button>
+        <button class="primary mobile-save" type="button" data-action="save-config">保存</button>
       </form>
     </section>
   `);
@@ -971,7 +972,6 @@ function countBy(items, key) {
 
 async function render() {
   try {
-    state.error = "";
     const path = appPath();
     if (path === "/" || path === "/login") paintShell(await viewLogin());
     else if (path === "/admin/login") paintShell(viewAdminLogin());
