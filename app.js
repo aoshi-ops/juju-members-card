@@ -9,18 +9,12 @@ const ranks = [
 ];
 
 const demoSoundHorrors = [
-  { id: "demo-1", title: "坑内馬の蹄鉄" },
-  { id: "demo-2", title: "病呑守り" },
-  { id: "demo-3", title: "遺棄された黒電話" },
-  { id: "demo-4", title: "クラウドサービス" },
-  { id: "demo-5", title: "合わせ鏡の子守唄" },
-  { id: "demo-6", title: "深夜二階席" },
-  { id: "demo-7", title: "煤けた人形" },
-  { id: "demo-8", title: "閉店後の足音" },
-  { id: "demo-9", title: "鈴のない御守り" },
-  { id: "demo-10", title: "雨の日の客" },
-  { id: "demo-11", title: "借りた名前" },
-  { id: "demo-12", title: "返事をする棚" }
+  { id: "demo-1", title: "腹話術人形まぁくん" },
+  { id: "demo-2", title: "岩塩仏" },
+  { id: "demo-3", title: "お母さん役の操り人形" },
+  { id: "demo-4", title: "遺棄された黒電話" },
+  { id: "demo-5", title: "病呑守り" },
+  { id: "demo-6", title: "坑内馬の蹄鉄" }
 ];
 
 const demo = {
@@ -68,6 +62,7 @@ const ADMIN_DEMO_ID = "joujoustaff";
 const ADMIN_DEMO_PASSWORD = "joujoufirstanniversary";
 const ADMIN_DEMO_STORAGE = "JUJU_ADMIN_DEMO_AUTH";
 const PENDING_REGISTRATION_STORAGE = "JUJU_PENDING_REGISTRATION";
+const iconStorageKey = (userId) => `JUJU_ICON_${userId}`;
 const cfg = () => ({
   url: localStorage.getItem("SUPABASE_URL") || "",
   anon: localStorage.getItem("SUPABASE_ANON_KEY") || ""
@@ -185,6 +180,10 @@ function appErrorMessage(error) {
     return schemaSetupMessage;
   }
   return message;
+}
+
+function userIcon(user) {
+  return user.icon_url || localStorage.getItem(iconStorageKey(user.id)) || "";
 }
 
 async function ensureUserProfile(authUser) {
@@ -519,6 +518,37 @@ async function setFavoriteRelic(value) {
   render();
 }
 
+async function updateIcon(file) {
+  if (!file) return;
+  if (!file.type.startsWith("image/")) {
+    state = { busy: false, message: "", error: "画像ファイルを選択してください。" };
+    render();
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = async () => {
+    const iconUrl = String(reader.result);
+    try {
+      const data = await loadMyData();
+      localStorage.setItem(iconStorageKey(data.user.id), iconUrl);
+      if (supabase) {
+        const { error } = await supabase.from("users").update({ icon_url: iconUrl }).eq("id", data.user.id);
+        if (error) throw error;
+      }
+      state = { busy: false, message: "アイコンを更新しました。", error: "" };
+    } catch (error) {
+      state = { busy: false, message: "", error: appErrorMessage(error) };
+    }
+    render();
+  };
+  reader.onerror = () => {
+    state = { busy: false, message: "", error: "画像を読み込めませんでした。" };
+    render();
+  };
+  reader.readAsDataURL(file);
+}
+
 async function recordVisit(type) {
   try {
     if (!supabase) throw new Error("デモ表示では記録できません。Supabase 接続後に試してください。");
@@ -593,6 +623,12 @@ function notice() {
 }
 
 async function viewLogin() {
+  const current = isConfigured() ? await currentSession() : null;
+  if (current?.user && !appPath().startsWith("/admin")) {
+    navigate("/member-card");
+    return "";
+  }
+
   return html`
     <main class="auth-page">
       <section class="auth-panel">
@@ -710,12 +746,11 @@ async function viewMemberCard() {
   const horrors = data.soundHorrors?.length ? data.soundHorrors : demoSoundHorrors;
   const completed = Object.keys(listensByHorror).length;
   const birthday = data.user.birthday_visible ? yenDate(data.user.birthday) : "非表示";
+  const icon = userIcon(data.user);
 
   return layout(html`
     <section class="member-actions">
       <button class="primary" data-link="/scan">QRを読み取る</button>
-      <button data-link="/qr/visit?type=first_floor">一階席QRテスト</button>
-      <button data-link="/qr/visit?type=second_floor">二階席QRテスト</button>
     </section>
     <section class="card-stage">
       <button class="coupon-float" data-link="/coupons">クーポン</button>
@@ -727,7 +762,14 @@ async function viewMemberCard() {
               <h1>${data.user.username}</h1>
               <p class="member-no">${data.user.member_number}</p>
             </div>
-            <div class="avatar">${(data.user.username || "J").slice(0, 1).toUpperCase()}</div>
+            <label class="avatar" title="アイコンを変更">
+              ${icon ? `<img src="${icon}" alt="ユーザーアイコン" />` : `<span>${(data.user.username || "J").slice(0, 1).toUpperCase()}</span>`}
+              <input type="file" accept="image/*" data-action="icon-upload" />
+            </label>
+          </div>
+          <div class="point-strip">
+            <span>現在のポイント</span>
+            <strong>${points} pt</strong>
           </div>
           <div class="card-grid">
             <span>誕生日</span><strong>${birthday}</strong>
@@ -746,7 +788,7 @@ async function viewMemberCard() {
             <strong>総体験 ${data.listens.length}回</strong>
           </div>
           <div class="stamp-grid">
-            ${horrors.map((horror) => `<div class="stamp ${listensByHorror[horror.id] ? "done" : ""}"><span>${listensByHorror[horror.id] ? horror.title : "？？？"}</span><b>${listensByHorror[horror.id] || 0}</b></div>`).join("")}
+            ${horrors.map((horror) => `<div class="stamp ${listensByHorror[horror.id] ? "done" : ""}"><span class="horror-title">${listensByHorror[horror.id] ? horror.title : "？？？？？"}</span><b>${listensByHorror[horror.id] || 0}</b></div>`).join("")}
           </div>
         </article>
       </div>
@@ -1077,6 +1119,7 @@ document.addEventListener("click", (event) => {
 document.addEventListener("change", (event) => {
   if (event.target.matches('[data-action="birthday"]')) toggleBirthday(event.target.checked);
   if (event.target.matches('[data-action="favorite-relic"]')) setFavoriteRelic(event.target.value);
+  if (event.target.matches('[data-action="icon-upload"]')) updateIcon(event.target.files?.[0]);
 });
 
 document.addEventListener("submit", (event) => {

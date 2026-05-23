@@ -220,7 +220,7 @@ form {
 
 .card-stage {
   position: relative;
-  min-height: calc(100svh - 90px);
+  min-height: calc(100svh - 170px);
   display: grid;
   place-items: center;
   perspective: 1400px;
@@ -238,7 +238,7 @@ form {
 
 .flip-card {
   width: min(94vw, 980px);
-  aspect-ratio: 1.72 / 1;
+  aspect-ratio: 1.74 / 1;
   position: relative;
   transform-style: preserve-3d;
   transition: transform 520ms ease;
@@ -254,7 +254,7 @@ form {
   backface-visibility: hidden;
   border-radius: 8px;
   border: 1px solid rgba(225, 199, 131, 0.55);
-  padding: clamp(22px, 4vw, 44px);
+  padding: clamp(18px, 3.4vw, 38px);
   overflow: hidden;
   box-shadow: 0 34px 90px rgba(0, 0, 0, 0.45);
 }
@@ -287,7 +287,7 @@ form {
 
 .member-card h1 {
   margin: 0;
-  font-size: clamp(34px, 6vw, 72px);
+  font-size: clamp(30px, 5.2vw, 66px);
   line-height: 1;
 }
 
@@ -303,25 +303,62 @@ form {
   aspect-ratio: 1;
   border-radius: 50%;
   border: 2px solid var(--gold);
+  background: rgba(198, 168, 93, 0.08);
   color: var(--gold-2);
   font-size: clamp(32px, 5vw, 60px);
   font-weight: 800;
+  cursor: pointer;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar input {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.point-strip {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: clamp(16px, 2.4vw, 26px);
+  padding: 12px 16px;
+  border: 1px solid rgba(225, 199, 131, 0.38);
+  border-radius: 7px;
+  background: rgba(198, 168, 93, 0.1);
+}
+
+.point-strip span {
+  color: var(--muted);
+}
+
+.point-strip strong {
+  color: var(--gold-2);
+  font-size: clamp(24px, 4vw, 44px);
 }
 
 .card-grid {
   display: grid;
   grid-template-columns: max-content 1fr;
-  gap: 11px 20px;
-  margin-top: clamp(22px, 4vw, 42px);
-  font-size: clamp(14px, 2vw, 22px);
+  gap: 9px 18px;
+  margin-top: clamp(14px, 2.5vw, 28px);
+  font-size: clamp(13px, 1.65vw, 20px);
 }
 
 .card-grid span { color: var(--muted); }
 .profile-controls {
-  position: absolute;
-  left: clamp(22px, 4vw, 44px);
-  right: clamp(22px, 4vw, 44px);
-  bottom: clamp(18px, 3vw, 32px);
+  position: static;
+  margin-top: clamp(14px, 2vw, 24px);
   display: flex;
   align-items: center;
   gap: 18px;
@@ -362,6 +399,20 @@ form {
 .stamp b {
   color: var(--gold-2);
   font-size: 24px;
+}
+
+.horror-title {
+  font-family: "Yu Mincho", "Hiragino Mincho ProN", "Yu Gothic UI", serif;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.35;
+}
+
+.member-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 0 0 16px;
 }
 
 .page-head {
@@ -485,10 +536,10 @@ th { color: var(--gold-2); }
   .qr-card { grid-template-columns: 112px 1fr; }
   .qr-card img { width: 112px; height: 112px; }
   .stamp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .card-stage { min-height: 72svh; }
+  .card-stage { min-height: auto; padding-bottom: 24px; }
   .flip-card { width: min(94vw, 680px); }
   .member-card { overflow-y: auto; }
-  .profile-controls { position: static; margin-top: 18px; }
+  .card-row { align-items: center; }
 }
 
 @media (orientation: landscape) and (max-height: 520px) {
