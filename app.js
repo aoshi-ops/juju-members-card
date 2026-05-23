@@ -77,6 +77,8 @@ const setupHint = () =>
   isConfigured()
     ? `<p class="notice ok">Supabase接続設定済みです。この端末から会員登録できます。</p>`
     : `<div class="setup-warning"><strong>Supabase接続が未設定です</strong><p>会員登録・ログインには、この端末のブラウザに Supabase URL と anon public key を保存してください。</p><button type="button" data-link="/settings">接続設定を開く</button></div>`;
+const schemaSetupMessage =
+  "Supabaseのデータベース初期設定が未完了です。AuthenticationのUsersとは別に、SQL Editorで public.users などのアプリ用テーブルを作成してください。";
 const yenDate = (value) => (value ? new Date(value).toLocaleDateString("ja-JP") : "-");
 const html = (strings, ...values) => strings.map((s, i) => s + (values[i] ?? "")).join("");
 const appPath = () => {
@@ -171,6 +173,18 @@ function profileFromAuthMetadata(authUser) {
 
 function clearPendingRegistration() {
   localStorage.removeItem(PENDING_REGISTRATION_STORAGE);
+}
+
+function appErrorMessage(error) {
+  const message = String(error?.message || error || "");
+  if (
+    message.includes("public.users") ||
+    message.includes("schema cache") ||
+    message.includes("Could not find the table")
+  ) {
+    return schemaSetupMessage;
+  }
+  return message;
 }
 
 async function ensureUserProfile(authUser) {
@@ -368,7 +382,7 @@ async function handleLogin(event) {
     state = { busy: false, message: "ログインしました。会員証を表示します。", error: "" };
     navigate(appPath().startsWith("/admin") ? "/admin/dashboard" : "/member-card");
   } catch (error) {
-    state = { busy: false, message: "", error: error.message };
+    state = { busy: false, message: "", error: appErrorMessage(error) };
     render();
   }
 }
@@ -439,7 +453,7 @@ async function handleRegister(event) {
     state = { busy: false, message: "確認メールを送信しました。メール確認後にログインすると、登録情報が保存されます。", error: "" };
     navigate("/login");
   } catch (error) {
-    state = { busy: false, message: "", error: error.message };
+    state = { busy: false, message: "", error: appErrorMessage(error) };
     render();
   }
 }
@@ -461,7 +475,7 @@ async function handleCompleteProfile(event) {
     state = { busy: false, message: "会員プロフィールを保存しました。会員証を表示します。", error: "" };
     navigate("/member-card");
   } catch (error) {
-    state = { busy: false, message: "", error: error.message };
+    state = { busy: false, message: "", error: appErrorMessage(error) };
     render();
   }
 }
@@ -487,7 +501,7 @@ async function toggleBirthday(checked) {
   }
   const data = await loadMyData();
   const { error } = await supabase.from("users").update({ birthday_visible: checked }).eq("id", data.user.id);
-  if (error) state.error = error.message;
+  if (error) state.error = appErrorMessage(error);
   render();
 }
 
@@ -495,7 +509,7 @@ async function setFavoriteRelic(value) {
   if (!supabase) return;
   const data = await loadMyData();
   const { error } = await supabase.from("users").update({ favorite_relic_id: value || null }).eq("id", data.user.id);
-  if (error) state.error = error.message;
+  if (error) state.error = appErrorMessage(error);
   render();
 }
 
@@ -506,7 +520,7 @@ async function recordVisit(type) {
     if (error) throw error;
     state = { busy: false, message: data.message, error: "" };
   } catch (error) {
-    state = { busy: false, message: "", error: error.message };
+    state = { busy: false, message: "", error: appErrorMessage(error) };
   }
   render();
 }
@@ -518,7 +532,7 @@ async function recordSoundHorror(id) {
     if (error) throw error;
     state = { busy: false, message: data.message, error: "" };
   } catch (error) {
-    state = { busy: false, message: "", error: error.message };
+    state = { busy: false, message: "", error: appErrorMessage(error) };
   }
   render();
 }
@@ -544,7 +558,7 @@ async function grantSpecialPoint(event) {
     if (error) throw error;
     state = { busy: false, message: "特別ポイントを付与しました。", error: "" };
   } catch (error) {
-    state = { busy: false, message: "", error: error.message };
+    state = { busy: false, message: "", error: appErrorMessage(error) };
   }
   render();
 }
@@ -992,7 +1006,7 @@ async function render() {
     else if (path === "/admin/coupons") paintShell(await viewAdminCoupons());
     else paintShell(layout(`<section class="empty-state">ページが見つかりません。</section>`));
   } catch (error) {
-    state.error = error.message;
+    state.error = appErrorMessage(error);
     if (appPath().startsWith("/admin")) {
       paintShell(layout(`<section class="empty-state"><h1>アクセス拒否</h1><p>${state.error}</p><button data-link="/admin/login">スタッフログインへ</button></section>`, true));
     } else {
