@@ -343,8 +343,12 @@ async function handleAdminLogin(event) {
 }
 
 async function handleRegister(event) {
-  event.preventDefault();
-  const form = new FormData(event.currentTarget);
+  event?.preventDefault?.();
+  const formElement = event?.currentTarget?.matches?.("form")
+    ? event.currentTarget
+    : document.querySelector('[data-form="register"]');
+  if (!formElement.reportValidity()) return;
+  const form = new FormData(formElement);
   if (!isConfigured()) {
     state = { busy: false, message: "", error: "Supabase接続が未設定です。先に接続設定を保存してください。" };
     navigate("/settings");
@@ -547,7 +551,7 @@ function viewRegister() {
           <label>性別<select name="gender" required><option>男性</option><option>女性</option><option>その他</option><option selected>回答しない</option></select></label>
           <label class="check"><input name="birthday_visible" type="checkbox" checked /> 会員カードに誕生日を表示</label>
           <p class="form-note">本名、性別、年齢は会員カード表面には表示されません。スタッフ管理画面でのみ確認します。</p>
-          <button class="primary">登録して会員証へ</button>
+          <button class="primary" type="submit" data-action="register-member">登録して会員証へ</button>
         </form>
         <button data-link="/login">ログインへ</button>
       </section>
@@ -900,6 +904,7 @@ document.addEventListener("click", (event) => {
   if (action.dataset.action === "logout") signOut();
   if (action.dataset.action === "admin-login") handleAdminLogin(event);
   if (action.dataset.action === "save-config") handleConfig(event);
+  if (action.dataset.action === "register-member") handleRegister(event);
   if (action.dataset.action === "flip-card") action.classList.toggle("is-flipped");
   if (action.dataset.action === "record-visit") recordVisit(action.dataset.type);
   if (action.dataset.action === "record-sound") recordSoundHorror(action.dataset.id);
