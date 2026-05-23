@@ -252,15 +252,18 @@ async function handleLogin(event) {
 }
 
 async function handleAdminLogin(event) {
-  event.preventDefault();
-  const form = new FormData(event.currentTarget);
+  event?.preventDefault?.();
+  const formElement = event?.currentTarget?.matches?.("form")
+    ? event.currentTarget
+    : document.querySelector('[data-form="admin-login"]');
+  const form = new FormData(formElement);
   const staffId = String(form.get("staff_id") || "").trim();
-  const password = String(form.get("password") || "");
+  const password = String(form.get("password") || "").trim();
 
   if (staffId === ADMIN_DEMO_ID && password === ADMIN_DEMO_PASSWORD) {
     localStorage.setItem(ADMIN_DEMO_STORAGE, "true");
     state = { busy: false, message: "デモ用スタッフログインで管理画面を開きました。実データは Supabase の staff/admin 権限で確認します。", error: "" };
-    navigate("/admin/dashboard");
+    location.assign(publicUrl("/admin/dashboard"));
     return;
   }
 
@@ -437,7 +440,7 @@ function viewAdminLogin() {
         <form data-form="admin-login">
           <label>スタッフID<input name="staff_id" required autocomplete="username" /></label>
           <label>パスワード<input name="password" type="password" required autocomplete="current-password" /></label>
-          <button class="primary">管理画面を開く</button>
+          <button class="primary" type="submit" data-action="admin-login">管理画面を開く</button>
         </form>
         <div class="auth-links">
           <button data-link="/login">ユーザーログイン</button>
@@ -803,6 +806,7 @@ document.addEventListener("click", (event) => {
   const action = event.target.closest("[data-action]");
   if (!action) return;
   if (action.dataset.action === "logout") signOut();
+  if (action.dataset.action === "admin-login") handleAdminLogin(event);
   if (action.dataset.action === "flip-card") action.classList.toggle("is-flipped");
   if (action.dataset.action === "record-visit") recordVisit(action.dataset.type);
   if (action.dataset.action === "record-sound") recordSoundHorror(action.dataset.id);
