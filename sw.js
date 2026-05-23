@@ -1,4 +1,4 @@
-const CACHE = "juju-members-v0.2.10";
+const CACHE = "juju-members-v0.2.11";
 const ASSETS = ["./", "index.html", "404.html", "styles.css", "app.js", "manifest.json", "icon.svg"];
 
 self.addEventListener("install", (event) => {

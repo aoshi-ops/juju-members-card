@@ -141,6 +141,21 @@ function readPendingRegistration() {
   }
 }
 
+function profileFromAuthMetadata(authUser) {
+  const meta = authUser?.user_metadata || {};
+  if (!meta.real_name || !meta.username || !meta.birthday || meta.age === undefined || !meta.gender) return null;
+  return {
+    auth_user_id: authUser.id,
+    email: authUser.email,
+    real_name: meta.real_name,
+    username: meta.username,
+    birthday: meta.birthday,
+    age: Number(meta.age),
+    gender: meta.gender,
+    birthday_visible: meta.birthday_visible !== false
+  };
+}
+
 function clearPendingRegistration() {
   localStorage.removeItem(PENDING_REGISTRATION_STORAGE);
 }
@@ -159,11 +174,12 @@ async function ensureUserProfile(authUser) {
   }
 
   const pending = readPendingRegistration();
-  if (!pending || pending.email !== authUser.email) {
+  const payloadSource = pending?.email === authUser.email ? pending : profileFromAuthMetadata(authUser);
+  if (!payloadSource) {
     throw new Error("会員プロフィールがまだ作成されていません。会員登録フォームから登録情報を送信してください。");
   }
 
-  const payload = { ...pending, auth_user_id: authUser.id };
+  const payload = { ...payloadSource, auth_user_id: authUser.id, email: authUser.email };
   const { data, error } = await supabase
     .from("users")
     .upsert(payload, { onConflict: "auth_user_id" })
@@ -320,6 +336,7 @@ async function handleLogin(event) {
     if (error) throw error;
     const current = await currentSession();
     if (current?.user) await ensureUserProfile(current.user);
+    state = { busy: false, message: "ログインしました。会員証を表示します。", error: "" };
     navigate(appPath().startsWith("/admin") ? "/admin/dashboard" : "/member-card");
   } catch (error) {
     state = { busy: false, message: "", error: error.message };
@@ -371,7 +388,15 @@ async function handleRegister(event) {
       email,
       password,
       options: {
-        emailRedirectTo: absoluteUrl("/login")
+        emailRedirectTo: absoluteUrl("/login"),
+        data: {
+          real_name: payload.real_name,
+          username: payload.username,
+          birthday: payload.birthday,
+          age: payload.age,
+          gender: payload.gender,
+          birthday_visible: payload.birthday_visible
+        }
       }
     });
     if (error) throw error;
