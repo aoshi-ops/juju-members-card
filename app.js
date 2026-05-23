@@ -86,6 +86,7 @@ const appPath = () => {
   return path;
 };
 const publicUrl = (path) => `${BASE_PATH}${path}`;
+const absoluteUrl = (path) => new URL(publicUrl(path), location.origin).href;
 const navigate = (path) => {
   history.pushState({}, "", publicUrl(path));
   render();
@@ -362,7 +363,13 @@ async function handleRegister(event) {
     const password = String(form.get("password") || "");
     const payload = registrationPayloadFromForm(form);
     savePendingRegistration(payload);
-    const { data, error } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        emailRedirectTo: absoluteUrl("/login")
+      }
+    });
     if (error) throw error;
     if (!data.user) throw new Error("ユーザー登録に失敗しました。");
     if (data.session) {
