@@ -129,6 +129,19 @@ function registrationPayloadFromForm(form, authUserId = null) {
   };
 }
 
+function profilePayloadFromForm(form, authUser) {
+  return {
+    auth_user_id: authUser.id,
+    email: authUser.email,
+    real_name: String(form.get("real_name") || "").trim(),
+    username: String(form.get("username") || "").trim(),
+    birthday: String(form.get("birthday") || ""),
+    age: Number(form.get("age")),
+    gender: String(form.get("gender") || "回答しない"),
+    birthday_visible: form.get("birthday_visible") === "on"
+  };
+}
+
 function savePendingRegistration(payload) {
   localStorage.setItem(PENDING_REGISTRATION_STORAGE, JSON.stringify(payload));
 }
@@ -180,6 +193,10 @@ async function ensureUserProfile(authUser) {
   }
 
   const payload = { ...payloadSource, auth_user_id: authUser.id, email: authUser.email };
+  return saveUserProfile(payload);
+}
+
+async function saveUserProfile(payload) {
   const { data, error } = await supabase
     .from("users")
     .upsert(payload, { onConflict: "auth_user_id" })
@@ -335,7 +352,18 @@ async function handleLogin(event) {
     });
     if (error) throw error;
     const current = await currentSession();
-    if (current?.user) await ensureUserProfile(current.user);
+    if (current?.user) {
+      try {
+        await ensureUserProfile(current.user);
+      } catch (profileError) {
+        if (profileError.message.includes("会員プロフィール")) {
+          state = { busy: false, message: "ログインしました。会員証に表示するプロフィールを登録してください。", error: "" };
+          navigate("/complete-profile");
+          return;
+        }
+        throw profileError;
+      }
+    }
     state = { busy: false, message: "ログインしました。会員証を表示します。", error: "" };
     navigate(appPath().startsWith("/admin") ? "/admin/dashboard" : "/member-card");
   } catch (error) {
@@ -409,6 +437,28 @@ async function handleRegister(event) {
     }
     state = { busy: false, message: "確認メールを送信しました。メール確認後にログインすると、登録情報が保存されます。", error: "" };
     navigate("/login");
+  } catch (error) {
+    state = { busy: false, message: "", error: error.message };
+    render();
+  }
+}
+
+async function handleCompleteProfile(event) {
+  event?.preventDefault?.();
+  const formElement = event?.currentTarget?.matches?.("form")
+    ? event.currentTarget
+    : document.querySelector('[data-form="complete-profile"]');
+  if (!formElement.reportValidity()) return;
+
+  try {
+    if (!supabase) throw new Error("Supabase接続が未設定です。先に接続設定を保存してください。");
+    const current = await currentSession();
+    if (!current?.user) throw new Error("ログインが必要です。");
+    const payload = profilePayloadFromForm(new FormData(formElement), current.user);
+    await saveUserProfile(payload);
+    clearPendingRegistration();
+    state = { busy: false, message: "会員プロフィールを保存しました。会員証を表示します。", error: "" };
+    navigate("/member-card");
   } catch (error) {
     state = { busy: false, message: "", error: error.message };
     render();
@@ -590,6 +640,32 @@ function viewRegister() {
           <button class="primary" type="submit" data-action="register-member">登録して会員証へ</button>
         </form>
         <button data-link="/login">ログインへ</button>
+      </section>
+    </main>
+  `;
+}
+
+async function viewCompleteProfile() {
+  const current = await currentSession();
+  if (!current?.user) return viewLogin();
+  const pending = readPendingRegistration() || profileFromAuthMetadata(current.user) || {};
+  return html`
+    <main class="auth-page">
+      <section class="auth-panel wide">
+        <h1>会員プロフィール登録</h1>
+        <p>ログインは完了しています。会員証と管理アプリに反映するプロフィールを保存してください。</p>
+        ${notice()}
+        <form class="grid-form" data-form="complete-profile">
+          <label>本名<input name="real_name" required autocomplete="name" value="${pending.real_name || ""}" /></label>
+          <label>ユーザーネーム<input name="username" required autocomplete="nickname" value="${pending.username || ""}" /></label>
+          <label>メールアドレス<input value="${current.user.email || ""}" disabled /></label>
+          <label>誕生日<input name="birthday" type="date" required value="${pending.birthday || ""}" /></label>
+          <label>年齢<input name="age" type="number" min="0" max="120" required inputmode="numeric" value="${pending.age ?? ""}" /></label>
+          <label>性別<select name="gender" required>${["男性", "女性", "その他", "回答しない"].map((gender) => `<option ${gender === (pending.gender || "回答しない") ? "selected" : ""}>${gender}</option>`).join("")}</select></label>
+          <label class="check"><input name="birthday_visible" type="checkbox" ${pending.birthday_visible === false ? "" : "checked"} /> 会員カードに誕生日を表示</label>
+          <p class="form-note">保存すると public.users に会員情報が作られ、スタッフ管理アプリの登録者一覧に反映されます。</p>
+          <button class="primary" type="submit" data-action="complete-profile">保存して会員証へ</button>
+        </form>
       </section>
     </main>
   `;
@@ -900,6 +976,7 @@ async function render() {
     if (path === "/" || path === "/login") paintShell(await viewLogin());
     else if (path === "/admin/login") paintShell(viewAdminLogin());
     else if (path === "/register") paintShell(viewRegister());
+    else if (path === "/complete-profile") paintShell(await viewCompleteProfile());
     else if (path === "/member-card") paintShell(await viewMemberCard());
     else if (path === "/coupons") paintShell(await viewCoupons());
     else if (path === "/qr/visit") paintShell(await viewQrVisit());
@@ -942,6 +1019,7 @@ document.addEventListener("click", (event) => {
   if (action.dataset.action === "admin-login") handleAdminLogin(event);
   if (action.dataset.action === "save-config") handleConfig(event);
   if (action.dataset.action === "register-member") handleRegister(event);
+  if (action.dataset.action === "complete-profile") handleCompleteProfile(event);
   if (action.dataset.action === "flip-card") action.classList.toggle("is-flipped");
   if (action.dataset.action === "record-visit") recordVisit(action.dataset.type);
   if (action.dataset.action === "record-sound") recordSoundHorror(action.dataset.id);
@@ -959,6 +1037,7 @@ document.addEventListener("submit", (event) => {
   if (form === "login") handleLogin(event);
   if (form === "admin-login") handleAdminLogin(event);
   if (form === "register") handleRegister(event);
+  if (form === "complete-profile") handleCompleteProfile(event);
   if (form === "config") handleConfig(event);
   if (form === "special-point") grantSpecialPoint(event);
 });
