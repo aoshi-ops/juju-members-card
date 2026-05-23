@@ -376,8 +376,11 @@ async function handleRegister(event) {
 }
 
 async function handleConfig(event) {
-  event.preventDefault();
-  const form = new FormData(event.currentTarget);
+  event?.preventDefault?.();
+  const formElement = event?.currentTarget?.matches?.("form")
+    ? event.currentTarget
+    : document.querySelector('[data-form="config"]');
+  const form = new FormData(formElement);
   localStorage.setItem("SUPABASE_URL", form.get("url"));
   localStorage.setItem("SUPABASE_ANON_KEY", form.get("anon"));
   await initSupabase();
@@ -666,7 +669,7 @@ function viewSettings() {
       <form data-form="config">
         <label>Supabase URL<input name="url" value="${url}" placeholder="https://xxxx.supabase.co" /></label>
         <label>Supabase anon key<input name="anon" value="${anon}" placeholder="eyJ..." /></label>
-        <button class="primary">保存</button>
+        <button class="primary mobile-save" type="submit" data-action="save-config">保存</button>
       </form>
     </section>
   `);
@@ -896,6 +899,7 @@ document.addEventListener("click", (event) => {
   if (!action) return;
   if (action.dataset.action === "logout") signOut();
   if (action.dataset.action === "admin-login") handleAdminLogin(event);
+  if (action.dataset.action === "save-config") handleConfig(event);
   if (action.dataset.action === "flip-card") action.classList.toggle("is-flipped");
   if (action.dataset.action === "record-visit") recordVisit(action.dataset.type);
   if (action.dataset.action === "record-sound") recordSoundHorror(action.dataset.id);
