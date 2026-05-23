@@ -162,6 +162,12 @@ form {
   margin-top: 18px;
 }
 
+.soft-divider {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 24px 0;
+}
+
 .demo-credential {
   display: grid;
   grid-template-columns: max-content 1fr;

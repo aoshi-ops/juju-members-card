@@ -261,6 +261,12 @@ async function signOut() {
   navigate("/login");
 }
 
+function exitDemoAdmin() {
+  localStorage.removeItem(ADMIN_DEMO_STORAGE);
+  state = { busy: false, message: "デモ管理モードを終了しました。実データを見るには staff/admin のSupabaseログインを使ってください。", error: "" };
+  navigate("/admin/login");
+}
+
 async function loadMyData() {
   if (!supabase) return demo;
   const current = await currentSession();
@@ -629,6 +635,14 @@ function viewAdminLogin() {
           <button data-link="/login">ユーザーログイン</button>
           <button data-link="/settings">Supabase接続設定</button>
         </div>
+        <hr class="soft-divider" />
+        <h2>実データ用 staff/admin ログイン</h2>
+        <p>登録者一覧などの実データは、Supabase Auth のアカウントを staff/admin にしたうえでログインすると表示されます。</p>
+        <form data-form="login">
+          <label>メールアドレス<input name="email" type="email" required autocomplete="email" /></label>
+          <label>パスワード<input name="password" type="password" required autocomplete="current-password" /></label>
+          <button class="primary" type="button" data-action="login-user">実データ管理画面へ</button>
+        </form>
       </section>
     </main>
   `;
@@ -698,6 +712,11 @@ async function viewMemberCard() {
   const birthday = data.user.birthday_visible ? yenDate(data.user.birthday) : "非表示";
 
   return layout(html`
+    <section class="member-actions">
+      <button class="primary" data-link="/scan">QRを読み取る</button>
+      <button data-link="/qr/visit?type=first_floor">一階席QRテスト</button>
+      <button data-link="/qr/visit?type=second_floor">二階席QRテスト</button>
+    </section>
     <section class="card-stage">
       <button class="coupon-float" data-link="/coupons">クーポン</button>
       <div class="flip-card" data-action="flip-card">
@@ -730,6 +749,20 @@ async function viewMemberCard() {
             ${horrors.map((horror) => `<div class="stamp ${listensByHorror[horror.id] ? "done" : ""}"><span>${listensByHorror[horror.id] ? horror.title : "？？？"}</span><b>${listensByHorror[horror.id] || 0}</b></div>`).join("")}
           </div>
         </article>
+      </div>
+    </section>
+  `);
+}
+
+function viewScan() {
+  return layout(html`
+    <section class="action-panel">
+      <h1>QR読み取り</h1>
+      <p>スマホのカメラで店頭QRを読み取るか、下のテスト用ボタンから記録画面を開けます。実際の記録はログイン中の本人にだけ紐づきます。</p>
+      <div class="admin-actions">
+        <button class="primary" data-link="/qr/visit?type=first_floor">一階席来店を記録</button>
+        <button class="primary" data-link="/qr/visit?type=second_floor">二階席来店を記録</button>
+        <button data-link="/member-card">会員証へ戻る</button>
       </div>
     </section>
   `);
@@ -815,7 +848,7 @@ function viewSpecialCards() {
 
 function adminModeBanner() {
   return isDemoAdmin()
-    ? `<p class="notice ok">デモ用スタッフログイン中です。表示データは確認用です。本番データは Supabase の staff/admin 権限で確認します。</p>`
+    ? `<div class="setup-warning"><strong>デモ管理モードです</strong><p>表示中の登録者は確認用データです。実際に登録したユーザーを見るには、Supabase Authでログインしたアカウントの app_profiles.role を staff/admin にしてください。</p><button type="button" data-action="exit-demo-admin">デモを終了して実データログインへ</button></div>`
     : "";
 }
 
@@ -992,6 +1025,7 @@ async function render() {
     else if (path === "/register") paintShell(viewRegister());
     else if (path === "/complete-profile") paintShell(await viewCompleteProfile());
     else if (path === "/member-card") paintShell(await viewMemberCard());
+    else if (path === "/scan") paintShell(viewScan());
     else if (path === "/coupons") paintShell(await viewCoupons());
     else if (path === "/qr/visit") paintShell(await viewQrVisit());
     else if (path.startsWith("/qr/sound-horror/")) paintShell(await viewQrSound());
@@ -1029,6 +1063,7 @@ document.addEventListener("click", (event) => {
   const action = event.target.closest("[data-action]");
   if (!action) return;
   if (action.dataset.action === "logout") signOut();
+  if (action.dataset.action === "exit-demo-admin") exitDemoAdmin();
   if (action.dataset.action === "login-user") handleLogin(event);
   if (action.dataset.action === "admin-login") handleAdminLogin(event);
   if (action.dataset.action === "save-config") handleConfig(event);

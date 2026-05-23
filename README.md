@@ -35,6 +35,22 @@ Supabase 接続前に管理 UI を確認するためのデモ用ログインで�
 
 この仮ログインは UI 確認用です。本番データの閲覧・更新は Supabase Auth でログインしたユーザーの `app_profiles.role` が `staff` または `admin` の場合だけ実行します。
 
+## staff/admin 権限の付与
+
+管理アプリで実際の登録者一覧を見るには、Supabase Auth に存在するユーザーを `staff` または `admin` にします。
+
+Supabase SQL Editor で、対象メールアドレスを差し替えて実行します。
+
+```sql
+update public.app_profiles p
+set role = 'admin'
+from auth.users au
+where p.auth_user_id = au.id
+  and au.email = 'your-email@example.com';
+```
+
+その後、`/admin/login` の「実データ用 staff/admin ログイン」から、そのメールアドレスとパスワードでログインします。
+
 ## 権限
 
 - 一般ユーザーは `auth.uid()` と一致する `users.auth_user_id` のデータだけを閲覧・更新できます。
