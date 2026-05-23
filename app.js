@@ -67,6 +67,7 @@ const BASE_PATH = scriptUrl.pathname.replace(/\/app\.js$/, "").replace(/\/$/, ""
 const ADMIN_DEMO_ID = "joujoustaff";
 const ADMIN_DEMO_PASSWORD = "joujoufirstanniversary";
 const ADMIN_DEMO_STORAGE = "JUJU_ADMIN_DEMO_AUTH";
+const PENDING_REGISTRATION_STORAGE = "JUJU_PENDING_REGISTRATION";
 const cfg = () => ({
   url: localStorage.getItem("SUPABASE_URL") || "",
   anon: localStorage.getItem("SUPABASE_ANON_KEY") || ""
@@ -108,6 +109,64 @@ function demoAdminData() {
     ],
     coupons: []
   };
+}
+
+function registrationPayloadFromForm(form, authUserId = null) {
+  return {
+    auth_user_id: authUserId,
+    email: String(form.get("email") || "").trim(),
+    real_name: String(form.get("real_name") || "").trim(),
+    username: String(form.get("username") || "").trim(),
+    birthday: String(form.get("birthday") || ""),
+    age: Number(form.get("age")),
+    gender: String(form.get("gender") || "回答しない"),
+    birthday_visible: form.get("birthday_visible") === "on"
+  };
+}
+
+function savePendingRegistration(payload) {
+  localStorage.setItem(PENDING_REGISTRATION_STORAGE, JSON.stringify(payload));
+}
+
+function readPendingRegistration() {
+  try {
+    return JSON.parse(localStorage.getItem(PENDING_REGISTRATION_STORAGE) || "null");
+  } catch {
+    return null;
+  }
+}
+
+function clearPendingRegistration() {
+  localStorage.removeItem(PENDING_REGISTRATION_STORAGE);
+}
+
+async function ensureUserProfile(authUser) {
+  if (!supabase || !authUser) return null;
+  const existing = await supabase
+    .from("users")
+    .select("*")
+    .eq("auth_user_id", authUser.id)
+    .maybeSingle();
+  if (existing.error) throw existing.error;
+  if (existing.data) {
+    clearPendingRegistration();
+    return existing.data;
+  }
+
+  const pending = readPendingRegistration();
+  if (!pending || pending.email !== authUser.email) {
+    throw new Error("会員プロフィールがまだ作成されていません。会員登録フォームから登録情報を送信してください。");
+  }
+
+  const payload = { ...pending, auth_user_id: authUser.id };
+  const { data, error } = await supabase
+    .from("users")
+    .upsert(payload, { onConflict: "auth_user_id" })
+    .select("*")
+    .single();
+  if (error) throw error;
+  clearPendingRegistration();
+  return data;
 }
 
 async function initSupabase() {
@@ -153,11 +212,12 @@ async function loadMyData() {
   const current = await currentSession();
   if (!current) throw new Error("ログインが必要です。");
 
-  const [{ data: profile }, { data: user, error: userError }] = await Promise.all([
-    supabase.from("app_profiles").select("role").eq("auth_user_id", current.user.id).single(),
-    supabase.from("users").select("*").eq("auth_user_id", current.user.id).single()
-  ]);
-  if (userError) throw userError;
+  const user = await ensureUserProfile(current.user);
+  const { data: profile } = await supabase
+    .from("app_profiles")
+    .select("role")
+    .eq("auth_user_id", current.user.id)
+    .maybeSingle();
 
   const [visits, listens, points, coupons, horrors, relics] = await Promise.all([
     supabase.from("visits").select("*").eq("user_id", user.id).order("visited_at", { ascending: false }),
@@ -244,6 +304,8 @@ async function handleLogin(event) {
       password: form.get("password")
     });
     if (error) throw error;
+    const current = await currentSession();
+    if (current?.user) await ensureUserProfile(current.user);
     navigate(appPath().startsWith("/admin") ? "/admin/dashboard" : "/member-card");
   } catch (error) {
     state = { busy: false, message: "", error: error.message };
@@ -278,23 +340,21 @@ async function handleRegister(event) {
   render();
   try {
     if (!supabase) throw new Error("Supabase URL と anon key を設定してください。");
-    const email = form.get("email");
-    const password = form.get("password");
+    const email = String(form.get("email") || "").trim();
+    const password = String(form.get("password") || "");
+    const payload = registrationPayloadFromForm(form);
+    savePendingRegistration(payload);
     const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) throw error;
     if (!data.user) throw new Error("ユーザー登録に失敗しました。");
-    const { error: profileError } = await supabase.from("users").insert({
-      auth_user_id: data.user.id,
-      email,
-      real_name: form.get("real_name"),
-      username: form.get("username"),
-      birthday: form.get("birthday"),
-      age: Number(form.get("age")),
-      gender: form.get("gender"),
-      birthday_visible: form.get("birthday_visible") === "on"
-    });
-    if (profileError) throw profileError;
-    navigate("/member-card");
+    if (data.session) {
+      await ensureUserProfile(data.user);
+      state = { busy: false, message: "会員登録が完了しました。管理アプリの登録者一覧にも反映されます。", error: "" };
+      navigate("/member-card");
+      return;
+    }
+    state = { busy: false, message: "確認メールを送信しました。メール確認後にログインすると、登録情報が保存されます。", error: "" };
+    navigate("/login");
   } catch (error) {
     state = { busy: false, message: "", error: error.message };
     render();
@@ -456,17 +516,19 @@ function viewRegister() {
     <main class="auth-page">
       <section class="auth-panel wide">
         <h1>会員登録</h1>
+        <p>ここで入力した情報は本番用の会員プロフィールとして保存され、スタッフ管理アプリの登録者一覧に反映されます。</p>
         ${notice()}
         <form class="grid-form" data-form="register">
-          <label>本名<input name="real_name" required /></label>
-          <label>ユーザーネーム<input name="username" required /></label>
-          <label>メールアドレス<input name="email" type="email" required /></label>
-          <label>パスワード<input name="password" type="password" minlength="8" required /></label>
+          <label>本名<input name="real_name" required autocomplete="name" placeholder="山田 太郎" /></label>
+          <label>ユーザーネーム<input name="username" required autocomplete="nickname" placeholder="juju_guest" /></label>
+          <label>メールアドレス<input name="email" type="email" required autocomplete="email" placeholder="you@example.com" /></label>
+          <label>パスワード<input name="password" type="password" minlength="8" required autocomplete="new-password" /></label>
           <label>誕生日<input name="birthday" type="date" required /></label>
-          <label>年齢<input name="age" type="number" min="0" max="120" required /></label>
-          <label>性別<select name="gender" required><option>男性</option><option>女性</option><option>その他</option><option>回答しない</option></select></label>
+          <label>年齢<input name="age" type="number" min="0" max="120" required inputmode="numeric" /></label>
+          <label>性別<select name="gender" required><option>男性</option><option>女性</option><option>その他</option><option selected>回答しない</option></select></label>
           <label class="check"><input name="birthday_visible" type="checkbox" checked /> 会員カードに誕生日を表示</label>
-          <button class="primary">登録する</button>
+          <p class="form-note">本名、性別、年齢は会員カード表面には表示されません。スタッフ管理画面でのみ確認します。</p>
+          <button class="primary">登録して会員証へ</button>
         </form>
         <button data-link="/login">ログインへ</button>
       </section>

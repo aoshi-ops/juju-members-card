@@ -132,8 +132,15 @@ form {
 
 .grid-form .primary,
 .grid-form .check,
+.grid-form .form-note,
 .grid-form label:has(textarea) {
   grid-column: 1 / -1;
+}
+
+.form-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
 }
 
 .check {
