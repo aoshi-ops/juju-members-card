@@ -298,8 +298,12 @@ async function loadAdminData(userId = null) {
 }
 
 async function handleLogin(event) {
-  event.preventDefault();
-  const form = new FormData(event.currentTarget);
+  event?.preventDefault?.();
+  const formElement = event?.currentTarget?.matches?.("form")
+    ? event.currentTarget
+    : document.querySelector('[data-form="login"]');
+  if (!formElement.reportValidity()) return;
+  const form = new FormData(formElement);
   if (!isConfigured()) {
     state = { busy: false, message: "", error: "Supabase接続が未設定です。先に接続設定を保存してください。" };
     navigate("/settings");
@@ -503,7 +507,7 @@ async function viewLogin() {
         <form data-form="login">
           <label>メールアドレス<input name="email" type="email" required autocomplete="email" /></label>
           <label>パスワード<input name="password" type="password" required autocomplete="current-password" /></label>
-          <button class="primary" ${state.busy ? "disabled" : ""}>ログイン</button>
+          <button class="primary" type="submit" data-action="login-user" ${state.busy ? "disabled" : ""}>ログイン</button>
         </form>
         <div class="auth-links">
           <button data-link="/register">会員登録</button>
@@ -909,6 +913,7 @@ document.addEventListener("click", (event) => {
   const action = event.target.closest("[data-action]");
   if (!action) return;
   if (action.dataset.action === "logout") signOut();
+  if (action.dataset.action === "login-user") handleLogin(event);
   if (action.dataset.action === "admin-login") handleAdminLogin(event);
   if (action.dataset.action === "save-config") handleConfig(event);
   if (action.dataset.action === "register-member") handleRegister(event);
