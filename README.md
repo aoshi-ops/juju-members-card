@@ -25,6 +25,16 @@
 2. アプリの `/settings` で Supabase URL と anon key を保存します。
 3. `service_role key` は絶対にブラウザに入力しないでください。
 
+## 管理アプリの仮ログイン
+
+Supabase 接続前に管理 UI を確認するためのデモ用ログインです。
+
+- URL: `/admin/login`
+- ID: `joujoustaff`
+- Password: `joujoufirstanniversary`
+
+この仮ログインは UI 確認用です。本番データの閲覧・更新は Supabase Auth でログインしたユーザーの `app_profiles.role` が `staff` または `admin` の場合だけ実行します。
+
 ## 権限
 
 - 一般ユーザーは `auth.uid()` と一致する `users.auth_user_id` のデータだけを閲覧・更新できます。
