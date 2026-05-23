@@ -73,6 +73,10 @@ const cfg = () => ({
   anon: localStorage.getItem("SUPABASE_ANON_KEY") || ""
 });
 const isConfigured = () => Boolean(cfg().url && cfg().anon);
+const setupHint = () =>
+  isConfigured()
+    ? `<p class="notice ok">Supabase接続設定済みです。この端末から会員登録できます。</p>`
+    : `<div class="setup-warning"><strong>Supabase接続が未設定です</strong><p>会員登録・ログインには、この端末のブラウザに Supabase URL と anon public key を保存してください。</p><button type="button" data-link="/settings">接続設定を開く</button></div>`;
 const yenDate = (value) => (value ? new Date(value).toLocaleDateString("ja-JP") : "-");
 const html = (strings, ...values) => strings.map((s, i) => s + (values[i] ?? "")).join("");
 const appPath = () => {
@@ -295,6 +299,11 @@ async function loadAdminData(userId = null) {
 async function handleLogin(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
+  if (!isConfigured()) {
+    state = { busy: false, message: "", error: "Supabase接続が未設定です。先に接続設定を保存してください。" };
+    navigate("/settings");
+    return;
+  }
   state = { busy: true, message: "", error: "" };
   paintShell(await viewLogin());
   try {
@@ -336,6 +345,11 @@ async function handleAdminLogin(event) {
 async function handleRegister(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
+  if (!isConfigured()) {
+    state = { busy: false, message: "", error: "Supabase接続が未設定です。先に接続設定を保存してください。" };
+    navigate("/settings");
+    return;
+  }
   state = { busy: true, message: "", error: "" };
   render();
   try {
@@ -470,6 +484,7 @@ async function viewLogin() {
       <section class="auth-panel">
         <h1>cafeジュジュ メンバーズカード</h1>
         <p>ログインすると、自分の会員証・来店履歴・サウンドホラー体験履歴だけを表示します。</p>
+        ${setupHint()}
         ${notice()}
         <form data-form="login">
           <label>メールアドレス<input name="email" type="email" required autocomplete="email" /></label>
@@ -517,6 +532,7 @@ function viewRegister() {
       <section class="auth-panel wide">
         <h1>会員登録</h1>
         <p>ここで入力した情報は本番用の会員プロフィールとして保存され、スタッフ管理アプリの登録者一覧に反映されます。</p>
+        ${setupHint()}
         ${notice()}
         <form class="grid-form" data-form="register">
           <label>本名<input name="real_name" required autocomplete="name" placeholder="山田 太郎" /></label>
@@ -635,7 +651,18 @@ function viewSettings() {
   return layout(html`
     <section class="settings">
       <h1>Supabase接続設定</h1>
-      <p>ブラウザに保存するのは公開可能な anon key だけです。service_role key は絶対に入力しないでください。</p>
+      <p>スマホで会員登録する場合も、この画面をスマホで開いて保存してください。保存するのは公開可能な anon public key だけです。service_role key は絶対に入力しないでください。</p>
+      ${notice()}
+      <div class="setup-guide">
+        <h2>入力する値</h2>
+        <p>Supabase Dashboard の Project Settings から Project URL と anon public key をコピーします。</p>
+        <ol>
+          <li>Supabaseでこのアプリ用プロジェクトを開く</li>
+          <li>Project Settings → API を開く</li>
+          <li>Project URL を Supabase URL に貼る</li>
+          <li>Project API keys の anon public を Supabase anon key に貼る</li>
+        </ol>
+      </div>
       <form data-form="config">
         <label>Supabase URL<input name="url" value="${url}" placeholder="https://xxxx.supabase.co" /></label>
         <label>Supabase anon key<input name="anon" value="${anon}" placeholder="eyJ..." /></label>
