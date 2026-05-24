@@ -16,6 +16,10 @@ const demoSoundHorrors = [
   { id: "demo-5", title: "病呑守り" },
   { id: "demo-6", title: "坑内馬の蹄鉄" }
 ];
+const soundHorrorTitles = demoSoundHorrors.map((horror) => horror.title);
+const specialExperiences = [
+  { code: "sange-box", title: "さんげの箱", point: 3 }
+];
 
 const demo = {
   profile: { role: "user" },
@@ -573,6 +577,18 @@ async function recordSoundHorror(id) {
   render();
 }
 
+async function recordSpecialExperience(code) {
+  try {
+    if (!supabase) throw new Error("デモ表示では記録できません。Supabase 接続後に試してください。");
+    const { data, error } = await supabase.rpc("record_special_experience", { experience_code: code });
+    if (error) throw error;
+    state = { busy: false, message: data.message, error: "" };
+  } catch (error) {
+    state = { busy: false, message: "", error: appErrorMessage(error) };
+  }
+  render();
+}
+
 async function grantSpecialPoint(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
@@ -855,6 +871,19 @@ async function viewQrSound() {
   `);
 }
 
+async function viewQrSpecial() {
+  const code = decodeURIComponent(appPath().split("/").pop());
+  const experience = specialExperiences.find((item) => item.code === code) || specialExperiences[0];
+  return layout(html`
+    <section class="action-panel">
+      <h1>${experience.title} QR</h1>
+      <p>この体験は会員証には表示せず、内部のポイント履歴として記録します。</p>
+      <button class="primary" data-action="record-special" data-code="${experience.code}">${experience.point}ptを記録する</button>
+      <button data-link="/member-card">会員証へ戻る</button>
+    </section>
+  `);
+}
+
 function viewSettings() {
   const { url, anon } = cfg();
   return layout(html`
@@ -1011,19 +1040,25 @@ async function viewAdminVisits() {
 }
 
 async function viewAdminQr() {
-  const horrors = supabase && !isDemoAdmin()
+  const rawHorrors = supabase && !isDemoAdmin()
     ? await supabase.from("sound_horrors").select("*").eq("is_active", true).order("title").then((result) => {
         if (result.error) throw result.error;
         return result.data || [];
       })
     : demoSoundHorrors;
+  const horrors = soundHorrorTitles
+    .map((title) => rawHorrors.find((horror) => horror.title === title) || demoSoundHorrors.find((horror) => horror.title === title))
+    .filter(Boolean);
+  const missingHorrors = soundHorrorTitles.filter((title) => !rawHorrors.some((horror) => horror.title === title));
   return layout(html`
     ${adminModeBanner()}
     <section class="page-head"><h1>店舗QR表示</h1><p>スタッフが店頭で提示するQRです。お客さんが読み取ると、ログイン後に本人の履歴として記録されます。</p></section>
+    ${missingHorrors.length && supabase && !isDemoAdmin() ? `<p class="notice error">Supabase側に未登録のサウンドホラーがあります。schema.sql を再実行して作品一覧を更新してください: ${missingHorrors.join(" / ")}</p>` : ""}
     <section class="qr-grid">
       ${qrCard("一階席来店", "/qr/visit?type=first_floor", "1pt / 1日合計2回まで")}
       ${qrCard("二階席来店", "/qr/visit?type=second_floor", "1.5pt / 1日合計2回まで")}
       ${horrors.map((horror) => qrCard(`サウンドホラー: ${horror.title}`, `/qr/sound-horror/${horror.id}`, "2pt / 同じ作品でも毎回記録")).join("")}
+      ${specialExperiences.map((experience) => qrCard(`体験サービス: ${experience.title}`, `/qr/special/${experience.code}`, `${experience.point}pt / 会員管理用ポイント履歴に記録`)).join("")}
     </section>
   `, true);
 }
@@ -1071,6 +1106,7 @@ async function render() {
     else if (path === "/coupons") paintShell(await viewCoupons());
     else if (path === "/qr/visit") paintShell(await viewQrVisit());
     else if (path.startsWith("/qr/sound-horror/")) paintShell(await viewQrSound());
+    else if (path.startsWith("/qr/special/")) paintShell(await viewQrSpecial());
     else if (path === "/settings") paintShell(viewSettings());
     else if (path === "/special-cards") paintShell(viewSpecialCards());
     else if (path === "/admin" || path === "/admin/dashboard") paintShell(await viewAdminDashboard());
@@ -1114,6 +1150,7 @@ document.addEventListener("click", (event) => {
   if (action.dataset.action === "flip-card") action.classList.toggle("is-flipped");
   if (action.dataset.action === "record-visit") recordVisit(action.dataset.type);
   if (action.dataset.action === "record-sound") recordSoundHorror(action.dataset.id);
+  if (action.dataset.action === "record-special") recordSpecialExperience(action.dataset.code);
 });
 
 document.addEventListener("change", (event) => {

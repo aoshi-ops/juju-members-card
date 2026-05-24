@@ -23,6 +23,7 @@ body {
   color: var(--ink);
   font-family: "Yu Gothic UI", "Hiragino Sans", system-ui, sans-serif;
   letter-spacing: 0;
+  overflow-x: hidden;
 }
 
 button, input, select, textarea {
@@ -531,15 +532,88 @@ th { color: var(--gold-2); }
 }
 
 @media (max-width: 780px) {
-  .topbar { align-items: flex-start; flex-direction: column; }
+  .topbar {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 16px 10px 12px;
+  }
+  nav {
+    width: 100%;
+    gap: 8px;
+    padding-bottom: 2px;
+  }
+  nav button {
+    min-height: 44px;
+    padding: 0 16px;
+  }
+  .user-main, .admin-main {
+    padding: 18px 10px 42px;
+  }
   .grid-form, .metric-grid, .detail-grid, .split-lists, .qr-grid { grid-template-columns: 1fr; }
   .qr-card { grid-template-columns: 112px 1fr; }
   .qr-card img { width: 112px; height: 112px; }
   .stamp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .card-stage { min-height: auto; padding-bottom: 24px; }
-  .flip-card { width: min(94vw, 680px); }
-  .member-card { overflow-y: auto; }
+  .member-actions {
+    margin: 0 0 14px;
+  }
+  .member-actions .primary {
+    min-width: min(78vw, 320px);
+  }
+  .card-stage {
+    display: block;
+    min-height: auto;
+    padding: 68px 0 26px;
+  }
+  .coupon-float {
+    top: 8px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .flip-card {
+    width: 100%;
+    min-height: 560px;
+    aspect-ratio: auto;
+  }
+  .member-card {
+    padding: 20px;
+    overflow-y: auto;
+  }
   .card-row { align-items: center; }
+  .member-card h1 {
+    font-size: clamp(34px, 10vw, 48px);
+  }
+  .member-no {
+    font-size: 18px;
+  }
+  .avatar {
+    width: 92px;
+    font-size: 38px;
+  }
+  .point-strip {
+    margin-top: 22px;
+    padding: 14px 16px;
+  }
+  .point-strip strong {
+    font-size: 38px;
+  }
+  .card-grid {
+    grid-template-columns: 1fr;
+    gap: 5px;
+    margin-top: 20px;
+    font-size: 17px;
+  }
+  .card-grid strong {
+    margin-bottom: 8px;
+    font-size: 20px;
+  }
+  .profile-controls {
+    display: grid;
+    gap: 10px;
+    margin-top: 12px;
+  }
+  .profile-controls select {
+    min-width: 100%;
+  }
 }
 
 @media (orientation: landscape) and (max-height: 520px) {

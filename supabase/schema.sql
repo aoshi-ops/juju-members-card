@@ -360,6 +360,48 @@ begin
 end;
 $$;
 
+create or replace function public.record_special_experience(experience_code text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_user_id uuid;
+  experience_title text;
+  points numeric(6,1);
+  rank_points numeric(8,1);
+begin
+  if auth.uid() is null then
+    raise exception 'ログインが必要です。';
+  end if;
+
+  select id into current_user_id from public.users where auth_user_id = auth.uid();
+  if current_user_id is null then
+    raise exception '会員情報がありません。';
+  end if;
+
+  if experience_code = 'sange-box' then
+    experience_title := 'さんげの箱';
+    points := 3.0;
+  else
+    raise exception '体験サービスが見つかりません。';
+  end if;
+
+  insert into public.point_events (user_id, point_type, point_value, rank_affects, source_type, memo, created_by)
+  values (current_user_id, 'special', points, true, 'special_experience', experience_title, auth.uid());
+
+  select coalesce(sum(point_value), 0) into rank_points
+  from public.point_events
+  where user_id = current_user_id and rank_affects = true;
+
+  return jsonb_build_object(
+    'recorded', true,
+    'message', experience_title || 'を記録しました。今回の獲得ポイント：' || points || 'pt 現在のランクポイント：' || rank_points || 'pt'
+  );
+end;
+$$;
+
 create or replace view public.admin_user_summaries
 with (security_invoker = true)
 as
@@ -381,6 +423,7 @@ grant execute on function public.is_admin() to authenticated;
 grant execute on function public.current_app_user_id() to authenticated;
 grant execute on function public.record_visit(text) to authenticated;
 grant execute on function public.record_sound_horror(uuid) to authenticated;
+grant execute on function public.record_special_experience(text) to authenticated;
 
 alter table public.app_profiles enable row level security;
 alter table public.users enable row level security;
@@ -531,4 +574,19 @@ values
   ('遺棄された黒電話', 'サウンドホラー初期作品', true),
   ('病呑守り', 'サウンドホラー初期作品', true),
   ('坑内馬の蹄鉄', 'サウンドホラー初期作品', true)
-on conflict do nothing;
+on conflict (title) do update
+set description = excluded.description,
+    is_active = true,
+    updated_at = now();
+
+update public.sound_horrors
+set is_active = false,
+    updated_at = now()
+where title not in (
+  '腹話術人形まぁくん',
+  '岩塩仏',
+  'お母さん役の操り人形',
+  '遺棄された黒電話',
+  '病呑守り',
+  '坑内馬の蹄鉄'
+);
