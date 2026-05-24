@@ -566,6 +566,20 @@ set rank_name = excluded.rank_name,
     min_point = excluded.min_point,
     max_point = excluded.max_point;
 
+insert into public.relics (name, description, is_active)
+select relic.name, relic.description, true
+from (values
+  ('病呑守り', '推し呪物候補', true),
+  ('さんげの箱', '推し呪物候補', true),
+  ('岩塩仏', '推し呪物候補', true),
+  ('遺棄された黒電話', '推し呪物候補', true),
+  ('お母さん役の操り人形', '推し呪物候補', true),
+  ('坑内馬の蹄鉄', '推し呪物候補', true)
+) as relic(name, description, is_active)
+where not exists (
+  select 1 from public.relics existing where existing.name = relic.name
+);
+
 insert into public.sound_horrors (title, description, is_active)
 values
   ('腹話術人形まぁくん', 'サウンドホラー初期作品', true),

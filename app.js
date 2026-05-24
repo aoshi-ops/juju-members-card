@@ -17,8 +17,20 @@ const demoSoundHorrors = [
   { id: "demo-6", title: "坑内馬の蹄鉄" }
 ];
 const soundHorrorTitles = demoSoundHorrors.map((horror) => horror.title);
+const currentSoundHorrors = (horrors = []) =>
+  soundHorrorTitles
+    .map((title) => horrors.find((horror) => horror.title === title) || demoSoundHorrors.find((horror) => horror.title === title))
+    .filter(Boolean);
 const specialExperiences = [
   { code: "sange-box", title: "さんげの箱", point: 3 }
+];
+const relicCatalog = [
+  { id: "local-byoudon-mamori", name: "病呑守り", image: "assets/relics/byoudon-mamori.jpg" },
+  { id: "local-sange-box", name: "さんげの箱", image: "assets/relics/sange-box.jpg" },
+  { id: "local-ganenbutsu", name: "岩塩仏", image: "assets/relics/ganenbutsu.jpg" },
+  { id: "local-black-phone", name: "遺棄された黒電話", image: "assets/relics/black-phone.jpg" },
+  { id: "local-mother-puppet", name: "お母さん役の操り人形", image: "assets/relics/mother-puppet.jpg" },
+  { id: "local-horseshoe", name: "坑内馬の蹄鉄", image: "assets/relics/horseshoe.jpg" }
 ];
 
 const demo = {
@@ -51,6 +63,7 @@ const demo = {
     { point_type: "sound_horror", point_value: 2, rank_affects: true, created_at: new Date().toISOString() }
   ],
   coupons: [],
+  relics: relicCatalog,
   users: []
 };
 
@@ -67,6 +80,7 @@ const ADMIN_DEMO_PASSWORD = "joujoufirstanniversary";
 const ADMIN_DEMO_STORAGE = "JUJU_ADMIN_DEMO_AUTH";
 const PENDING_REGISTRATION_STORAGE = "JUJU_PENDING_REGISTRATION";
 const iconStorageKey = (userId) => `JUJU_ICON_${userId}`;
+const relicStorageKey = (userId) => `JUJU_FAVORITE_RELIC_${userId}`;
 const cfg = () => ({
   url: localStorage.getItem("SUPABASE_URL") || "",
   anon: localStorage.getItem("SUPABASE_ANON_KEY") || ""
@@ -79,6 +93,12 @@ const setupHint = () =>
 const schemaSetupMessage =
   "Supabaseのデータベース初期設定が未完了です。AuthenticationのUsersとは別に、SQL Editorで public.users などのアプリ用テーブルを作成してください。";
 const yenDate = (value) => (value ? new Date(value).toLocaleDateString("ja-JP") : "-");
+const monthDayDate = (value) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  return date.toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" });
+};
 const html = (strings, ...values) => strings.map((s, i) => s + (values[i] ?? "")).join("");
 const appPath = () => {
   const path = location.pathname;
@@ -188,6 +208,23 @@ function appErrorMessage(error) {
 
 function userIcon(user) {
   return user.icon_url || localStorage.getItem(iconStorageKey(user.id)) || "";
+}
+
+function relicOptions(relics = []) {
+  return relicCatalog.map((catalogRelic) => {
+    const dbRelic = relics.find((relic) => relic.name === catalogRelic.name);
+    return dbRelic ? { ...dbRelic, image: catalogRelic.image } : catalogRelic;
+  });
+}
+
+function currentFavoriteRelic(user, relics = []) {
+  const options = relicOptions(relics);
+  const storedName = localStorage.getItem(relicStorageKey(user.id));
+  return (
+    options.find((relic) => relic.id === user.favorite_relic_id) ||
+    options.find((relic) => relic.name === storedName) ||
+    null
+  );
 }
 
 async function ensureUserProfile(authUser) {
@@ -302,7 +339,7 @@ async function loadMyData() {
     listens: listens.data || [],
     pointEvents: points.data || [],
     coupons: coupons.data || [],
-    soundHorrors: horrors.data || [],
+    soundHorrors: currentSoundHorrors(horrors.data || []),
     relics: relics.data || []
   };
 }
@@ -514,11 +551,27 @@ async function toggleBirthday(checked) {
   render();
 }
 
-async function setFavoriteRelic(value) {
-  if (!supabase) return;
+async function setFavoriteRelic(value, name = "") {
   const data = await loadMyData();
-  const { error } = await supabase.from("users").update({ favorite_relic_id: value || null }).eq("id", data.user.id);
-  if (error) state.error = appErrorMessage(error);
+  const options = relicOptions(data.relics);
+  const selected = options.find((relic) => relic.id === value) || options.find((relic) => relic.name === name);
+  if (selected) localStorage.setItem(relicStorageKey(data.user.id), selected.name);
+
+  if (!supabase) {
+    demo.user.favorite_relic_id = selected?.id || null;
+    state = { ...state, relicPicker: false, message: selected ? "推し呪物を設定しました。" : "", error: "" };
+    render();
+    return;
+  }
+
+  const dbRelic = data.relics.find((relic) => relic.id === selected?.id) || data.relics.find((relic) => relic.name === selected?.name);
+  if (dbRelic) {
+    const { error } = await supabase.from("users").update({ favorite_relic_id: dbRelic.id }).eq("id", data.user.id);
+    if (error) state.error = appErrorMessage(error);
+    else state = { ...state, relicPicker: false, message: "推し呪物を設定しました。", error: "" };
+  } else {
+    state = { ...state, relicPicker: false, message: "推し呪物をこの端末に保存しました。Supabase側へ反映するには schema.sql の再実行で呪物候補を登録してください。", error: "" };
+  }
   render();
 }
 
@@ -758,13 +811,17 @@ async function viewMemberCard() {
   const points = sumRankPoints(events);
   const rank = rankFor(points);
   const next = nextRank(points);
-  const listensByHorror = countBy(data.listens, "sound_horror_id");
   const horrors = data.soundHorrors?.length ? data.soundHorrors : demoSoundHorrors;
+  const currentHorrorIds = new Set(horrors.map((horror) => horror.id));
+  const visibleListens = data.listens.filter((listen) => currentHorrorIds.has(listen.sound_horror_id));
+  const listensByHorror = countBy(visibleListens, "sound_horror_id");
   const completed = Object.keys(listensByHorror).length;
-  const birthday = data.user.birthday_visible ? yenDate(data.user.birthday) : "非表示";
+  const birthday = data.user.birthday_visible ? monthDayDate(data.user.birthday) : "非表示";
   const icon = userIcon(data.user);
-  const favoriteRelic = data.relics?.find((relic) => relic.id === data.user.favorite_relic_id);
+  const relics = relicOptions(data.relics);
+  const favoriteRelic = currentFavoriteRelic(data.user, data.relics);
   const favoriteLabel = favoriteRelic?.name || "推し呪物";
+  const favoriteImage = favoriteRelic?.image || "";
 
   return layout(html`
     <section class="member-actions">
@@ -780,12 +837,15 @@ async function viewMemberCard() {
               <h1>${data.user.username}</h1>
               <p class="member-no">${data.user.member_number}</p>
             </div>
-            <div class="member-symbols">
-              <label class="avatar" title="アイコンを変更">
+            <div class="member-symbols" data-no-flip>
+              <label class="avatar" title="アイコンを変更" data-no-flip>
                 ${icon ? `<img src="${icon}" alt="ユーザーアイコン" />` : `<span>${(data.user.username || "J").slice(0, 1).toUpperCase()}</span>`}
                 <input type="file" accept="image/*" data-action="icon-upload" />
               </label>
-              <div class="favorite-relic-badge"><span>推し</span><strong>${favoriteLabel}</strong></div>
+              <button type="button" class="favorite-relic-badge ${favoriteImage ? "has-image" : ""}" data-action="open-relic-picker" data-no-flip>
+                ${favoriteImage ? `<img src="${favoriteImage}" alt="${favoriteLabel}" />` : `<span class="relic-placeholder">?</span>`}
+                <strong>${favoriteLabel}</strong>
+              </button>
             </div>
           </div>
           <div class="rank-badge"><span>称号</span><strong>ランク${rank.n} ${rank.name}</strong></div>
@@ -799,13 +859,12 @@ async function viewMemberCard() {
           </div>
           <div class="profile-controls">
             <label class="check"><input type="checkbox" data-action="birthday" ${data.user.birthday_visible ? "checked" : ""} /> 誕生日表示</label>
-            ${data.relics?.length ? relicSelect(data.relics, data.user.favorite_relic_id) : `<span>推し呪物：未設定</span>`}
           </div>
         </article>
         <article class="member-card face back">
           <div class="stamp-head">
             <div><p class="eyebrow">SOUND HORROR</p><h2>${completed} / ${horrors.length}</h2></div>
-            <strong>総体験 ${data.listens.length}回</strong>
+            <strong>総体験 ${visibleListens.length}回</strong>
           </div>
           <div class="stamp-grid">
             ${horrors.map((horror) => `<div class="stamp ${listensByHorror[horror.id] ? "done" : ""}"><span class="horror-title">${listensByHorror[horror.id] ? horror.title : "？？？？？"}</span><b>${listensByHorror[horror.id] || 0}</b></div>`).join("")}
@@ -815,9 +874,10 @@ async function viewMemberCard() {
     </section>
     <section class="member-settings-panel">
       <h2>推し呪物設定</h2>
-      <p>画像素材を追加したら、ここを呪物アイコン付きの選択UIに差し替えます。</p>
-      ${data.relics?.length ? relicSelect(data.relics, data.user.favorite_relic_id) : `<p class="empty">推し呪物の候補はまだ登録されていません。</p>`}
+      <p>会員証の推し呪物枠をタップして変更できます。</p>
+      ${relicPicker(relics, favoriteRelic)}
     </section>
+    ${state.relicPicker ? relicPickerModal(relics, favoriteRelic) : ""}
   `);
 }
 
@@ -835,8 +895,32 @@ function viewScan() {
   `);
 }
 
-function relicSelect(relics, current) {
-  return `<label>推し呪物<select data-action="favorite-relic"><option value="">未設定</option>${relics.map((relic) => `<option value="${relic.id}" ${relic.id === current ? "selected" : ""}>${relic.name}</option>`).join("")}</select></label>`;
+function relicPicker(relics, current) {
+  return `<div class="relic-picker">${relics.map((relic) => relicChoice(relic, current)).join("")}</div>`;
+}
+
+function relicPickerModal(relics, current) {
+  return html`
+    <div class="modal-backdrop" data-action="close-relic-picker">
+      <section class="relic-modal" data-no-flip>
+        <div class="modal-head">
+          <h2>推し呪物を選ぶ</h2>
+          <button type="button" data-action="close-relic-picker">閉じる</button>
+        </div>
+        ${relicPicker(relics, current)}
+      </section>
+    </div>
+  `;
+}
+
+function relicChoice(relic, current) {
+  const active = current?.name === relic.name || current?.id === relic.id;
+  return html`
+    <button type="button" class="relic-choice ${active ? "active" : ""}" data-action="favorite-relic" data-relic-id="${relic.id}" data-relic-name="${relic.name}">
+      <img src="${relic.image}" alt="${relic.name}" />
+      <span>${relic.name}</span>
+    </button>
+  `;
 }
 
 async function viewCoupons() {
@@ -1055,9 +1139,7 @@ async function viewAdminQr() {
         return result.data || [];
       })
     : demoSoundHorrors;
-  const horrors = soundHorrorTitles
-    .map((title) => rawHorrors.find((horror) => horror.title === title) || demoSoundHorrors.find((horror) => horror.title === title))
-    .filter(Boolean);
+  const horrors = currentSoundHorrors(rawHorrors);
   const missingHorrors = soundHorrorTitles.filter((title) => !rawHorrors.some((horror) => horror.title === title));
   return layout(html`
     ${adminModeBanner()}
@@ -1156,7 +1238,20 @@ document.addEventListener("click", (event) => {
   if (action.dataset.action === "save-config") handleConfig(event);
   if (action.dataset.action === "register-member") handleRegister(event);
   if (action.dataset.action === "complete-profile") handleCompleteProfile(event);
-  if (action.dataset.action === "flip-card") action.classList.toggle("is-flipped");
+  if (action.dataset.action === "open-relic-picker") {
+    state = { ...state, relicPicker: true };
+    render();
+  }
+  if (action.dataset.action === "close-relic-picker") {
+    if (event.target.closest(".relic-modal") && !event.target.closest("button")) return;
+    state = { ...state, relicPicker: false };
+    render();
+  }
+  if (action.dataset.action === "favorite-relic") setFavoriteRelic(action.dataset.relicId, action.dataset.relicName);
+  if (action.dataset.action === "flip-card") {
+    if (event.target.closest("[data-no-flip], .avatar, .favorite-relic-badge, .profile-controls")) return;
+    action.classList.toggle("is-flipped");
+  }
   if (action.dataset.action === "record-visit") recordVisit(action.dataset.type);
   if (action.dataset.action === "record-sound") recordSoundHorror(action.dataset.id);
   if (action.dataset.action === "record-special") recordSpecialExperience(action.dataset.code);
@@ -1164,7 +1259,6 @@ document.addEventListener("click", (event) => {
 
 document.addEventListener("change", (event) => {
   if (event.target.matches('[data-action="birthday"]')) toggleBirthday(event.target.checked);
-  if (event.target.matches('[data-action="favorite-relic"]')) setFavoriteRelic(event.target.value);
   if (event.target.matches('[data-action="icon-upload"]')) updateIcon(event.target.files?.[0]);
 });
 

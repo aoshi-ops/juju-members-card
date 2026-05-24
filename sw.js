@@ -1,5 +1,19 @@
-const CACHE = "juju-members-v0.2.19";
-const ASSETS = ["./", "index.html", "404.html", "styles.css", "app.js", "manifest.json", "icon.svg"];
+const CACHE = "juju-members-v0.2.21";
+const ASSETS = [
+  "./",
+  "index.html",
+  "404.html",
+  "styles.css",
+  "app.js",
+  "manifest.json",
+  "icon.svg",
+  "assets/relics/byoudon-mamori.jpg",
+  "assets/relics/sange-box.jpg",
+  "assets/relics/ganenbutsu.jpg",
+  "assets/relics/black-phone.jpg",
+  "assets/relics/mother-puppet.jpg",
+  "assets/relics/horseshoe.jpg"
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)));
