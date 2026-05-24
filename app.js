@@ -90,17 +90,15 @@ const ADMIN_DEMO_ID = "joujoustaff";
 const ADMIN_DEMO_PASSWORD = "joujoufirstanniversary";
 const ADMIN_DEMO_STORAGE = "JUJU_ADMIN_DEMO_AUTH";
 const PENDING_REGISTRATION_STORAGE = "JUJU_PENDING_REGISTRATION";
+const DEFAULT_SUPABASE_URL = "https://qaiedhueykxoodagbkda.supabase.co";
+const DEFAULT_SUPABASE_ANON_KEY = "sb_publishable_f4X3hypSAb24Dt__vhElKA_yT6vDa2x";
 const iconStorageKey = (userId) => `JUJU_ICON_${userId}`;
 const relicStorageKey = (userId) => `JUJU_FAVORITE_RELIC_${userId}`;
 const cfg = () => ({
-  url: localStorage.getItem("SUPABASE_URL") || "",
-  anon: localStorage.getItem("SUPABASE_ANON_KEY") || ""
+  url: localStorage.getItem("SUPABASE_URL") || DEFAULT_SUPABASE_URL,
+  anon: localStorage.getItem("SUPABASE_ANON_KEY") || DEFAULT_SUPABASE_ANON_KEY
 });
 const isConfigured = () => Boolean(cfg().url && cfg().anon);
-const setupHint = () =>
-  isConfigured()
-    ? `<p class="notice ok">Supabase接続設定済みです。この端末から会員登録できます。</p>`
-    : `<div class="setup-warning"><strong>Supabase接続が未設定です</strong><p>会員登録・ログインには、この端末のブラウザに Supabase URL と anon public key を保存してください。</p><button type="button" data-link="/settings">接続設定を開く</button></div>`;
 const schemaSetupMessage =
   "Supabaseのデータベース初期設定が未完了です。AuthenticationのUsersとは別に、SQL Editorで public.users などのアプリ用テーブルを作成してください。";
 const yenDate = (value) => (value ? new Date(value).toLocaleDateString("ja-JP") : "-");
@@ -418,14 +416,9 @@ async function handleLogin(event) {
     : document.querySelector('[data-form="login"]');
   if (!formElement.reportValidity()) return;
   const form = new FormData(formElement);
-  if (!isConfigured()) {
-    state = { busy: false, message: "", error: "Supabase接続が未設定です。先に接続設定を保存してください。" };
-    navigate("/settings");
-    return;
-  }
   state = { busy: true, message: "", error: "" };
   try {
-    if (!supabase) throw new Error("Supabase URL と anon key を設定してください。");
+    if (!supabase) throw new Error("通信設定を読み込めませんでした。時間をおいて再読み込みしてください。");
     const { error } = await supabase.auth.signInWithPassword({
       email: form.get("email"),
       password: form.get("password")
@@ -479,15 +472,10 @@ async function handleRegister(event) {
     : document.querySelector('[data-form="register"]');
   if (!formElement.reportValidity()) return;
   const form = new FormData(formElement);
-  if (!isConfigured()) {
-    state = { busy: false, message: "", error: "Supabase接続が未設定です。先に接続設定を保存してください。" };
-    navigate("/settings");
-    return;
-  }
   state = { busy: true, message: "", error: "" };
   render();
   try {
-    if (!supabase) throw new Error("Supabase URL と anon key を設定してください。");
+    if (!supabase) throw new Error("通信設定を読み込めませんでした。時間をおいて再読み込みしてください。");
     const email = String(form.get("email") || "").trim();
     const password = String(form.get("password") || "");
     const payload = registrationPayloadFromForm(form);
@@ -531,7 +519,7 @@ async function handleCompleteProfile(event) {
   if (!formElement.reportValidity()) return;
 
   try {
-    if (!supabase) throw new Error("Supabase接続が未設定です。先に接続設定を保存してください。");
+    if (!supabase) throw new Error("通信設定を読み込めませんでした。時間をおいて再読み込みしてください。");
     const current = await currentSession();
     if (!current?.user) throw new Error("ログインが必要です。");
     const payload = profilePayloadFromForm(new FormData(formElement), current.user);
@@ -766,6 +754,23 @@ async function grantCoupon(event) {
   render();
 }
 
+async function deleteGrantedCoupon(userCouponId) {
+  try {
+    if (isDemoAdmin()) {
+      state = { busy: false, message: "デモ管理では削除操作の確認だけ行いました。", error: "" };
+      render();
+      return;
+    }
+    if (!supabase) throw new Error("Supabase接続が必要です。");
+    const { error } = await supabase.from("user_coupons").delete().eq("id", userCouponId);
+    if (error) throw error;
+    state = { busy: false, message: "付与済みクーポンを削除しました。", error: "" };
+  } catch (error) {
+    state = { busy: false, message: "", error: appErrorMessage(error) };
+  }
+  render();
+}
+
 function layout(content, admin = false) {
   return html`
     <header class="topbar">
@@ -774,7 +779,6 @@ function layout(content, admin = false) {
         ${admin
           ? `<button data-link="/admin/dashboard">管理</button><button data-link="/admin/users">登録者</button><button data-link="/admin/visits">履歴</button><button data-link="/admin/points">特別ポイント</button><button data-link="/admin/qr">QR表示</button><button data-link="/admin/coupons">クーポン</button>`
           : `<button data-link="/member-card">会員証</button><button data-link="/coupons">クーポン</button><button data-link="/special-cards">特別カード</button>`}
-        <button data-link="/settings">設定</button>
         <button data-action="logout">ログアウト</button>
       </nav>
     </header>
@@ -801,7 +805,6 @@ async function viewLogin() {
       <section class="auth-panel">
         <h1>cafeジュジュ メンバーズカード</h1>
         <p>ログインすると、自分の会員証・来店履歴・サウンドホラー体験履歴だけを表示します。</p>
-        ${setupHint()}
         ${notice()}
         <form data-form="login">
           <label>メールアドレス<input name="email" type="email" required autocomplete="email" /></label>
@@ -810,7 +813,6 @@ async function viewLogin() {
         </form>
         <div class="auth-links">
           <button data-link="/register">会員登録</button>
-          <button data-link="/settings">Supabase接続設定</button>
           <button data-link="/member-card">デモ表示</button>
         </div>
       </section>
@@ -836,7 +838,6 @@ function viewAdminLogin() {
         </form>
         <div class="auth-links">
           <button data-link="/login">ユーザーログイン</button>
-          <button data-link="/settings">Supabase接続設定</button>
         </div>
         <hr class="soft-divider" />
         <h2>実データ用 staff/admin ログイン</h2>
@@ -857,7 +858,6 @@ function viewRegister() {
       <section class="auth-panel wide">
         <h1>会員登録</h1>
         <p>ここで入力した情報は本番用の会員プロフィールとして保存され、スタッフ管理アプリの登録者一覧に反映されます。</p>
-        ${setupHint()}
         ${notice()}
         <form class="grid-form" data-form="register">
           <label>本名<input name="real_name" required autocomplete="name" placeholder="山田 太郎" /></label>
@@ -1120,27 +1120,15 @@ async function viewQrCoupon() {
 }
 
 function viewSettings() {
-  const { url, anon } = cfg();
   return layout(html`
     <section class="settings">
-      <h1>Supabase接続設定</h1>
-      <p>スマホで会員登録する場合も、この画面をスマホで開いて保存してください。保存するのは公開可能な anon public key だけです。service_role key は絶対に入力しないでください。</p>
+      <h1>アプリ設定</h1>
+      <p>Supabase接続は公開用アプリに組み込み済みです。お客さんはURLやkeyを入力せずに会員登録・ログインできます。</p>
       ${notice()}
       <div class="setup-guide">
-        <h2>入力する値</h2>
-        <p>Supabase Dashboard の Project Settings から Project URL と anon public key をコピーします。</p>
-        <ol>
-          <li>Supabaseでこのアプリ用プロジェクトを開く</li>
-          <li>Project Settings → API を開く</li>
-          <li>Project URL を Supabase URL に貼る</li>
-          <li>Project API keys の anon public を Supabase anon key に貼る</li>
-        </ol>
+        <h2>公開状態</h2>
+        <p>フロントには公開可能なSupabase URLとpublishable keyのみを同梱しています。実データの保護はSupabase RLSとstaff/admin権限で行います。</p>
       </div>
-      <form data-form="config">
-        <label>Supabase URL<input name="url" value="${url}" placeholder="https://xxxx.supabase.co" /></label>
-        <label>Supabase anon key<input name="anon" value="${anon}" placeholder="eyJ..." /></label>
-        <button class="primary mobile-save" type="button" data-action="save-config">保存</button>
-      </form>
     </section>
   `);
 }
@@ -1315,6 +1303,12 @@ async function viewAdminPoints() {
 async function viewAdminCoupons() {
   const data = await loadAdminData();
   const coupons = data.coupons || [];
+  const granted = supabase && !isDemoAdmin()
+    ? await supabase.from("user_coupons").select("*, users(member_number, real_name), coupons(title)").order("issued_at", { ascending: false }).then((result) => {
+        if (result.error) throw result.error;
+        return result.data || [];
+      })
+    : [];
   return layout(html`
     ${adminModeBanner()}
     <section class="page-head"><h1>クーポン管理</h1><p>タイトルと説明文だけのシンプルなクーポンを作成し、QR取得または会員への直接付与ができます。</p></section>
@@ -1332,6 +1326,10 @@ async function viewAdminCoupons() {
     <section class="list-section">
       <h2>作成済みクーポン</h2>
       ${coupons.length ? coupons.map((c) => `<article class="coupon-admin-item"><div><strong>${c.title}</strong><span>${c.description || ""}</span><small>${c.expires_at ? yenDate(c.expires_at) : "無期限"}</small><code>${new URL(publicUrl(`/qr/coupon/${c.id}`), location.origin).href}</code></div><img src="${qrUrl(`/qr/coupon/${c.id}`)}" alt="${c.title} QR" /></article>`).join("") : `<p class="empty">登録済みクーポンはありません。</p>`}
+    </section>
+    <section class="list-section">
+      <h2>付与済みクーポン</h2>
+      ${granted.length ? granted.map((item) => `<article class="item coupon-grant-row"><div><strong>${item.coupons?.title || "クーポン"}</strong><span>${item.users?.member_number || "-"} / ${item.users?.real_name || ""}</span><small>${couponStatusLabel(item.status)} / ${yenDate(item.issued_at)}</small></div><button type="button" data-action="delete-granted-coupon" data-user-coupon-id="${item.id}">削除</button></article>`).join("") : `<p class="empty">付与済みクーポンはまだありません。</p>`}
     </section>
   `, true);
 }
@@ -1418,6 +1416,7 @@ document.addEventListener("click", (event) => {
   }
   if (action.dataset.action === "use-coupon") useCoupon(action.dataset.couponId);
   if (action.dataset.action === "claim-coupon") claimCoupon(action.dataset.couponId);
+  if (action.dataset.action === "delete-granted-coupon") deleteGrantedCoupon(action.dataset.userCouponId);
   if (action.dataset.action === "flip-card") {
     if (event.target.closest("[data-no-flip], .avatar, .favorite-relic-badge, .profile-controls")) return;
     action.classList.toggle("is-flipped");
