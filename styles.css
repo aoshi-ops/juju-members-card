@@ -102,7 +102,25 @@ nav {
 }
 
 nav button {
+  position: relative;
   min-width: max-content;
+}
+
+.news-badge {
+  position: absolute;
+  top: -7px;
+  right: -7px;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  display: inline-grid;
+  place-items: center;
+  background: #c83f3f;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 800;
+  box-shadow: 0 0 0 2px #090807;
 }
 
 .user-main, .admin-main {
@@ -425,6 +443,62 @@ form {
   font-size: clamp(16px, 2vw, 24px);
 }
 
+.purchase-seal {
+  position: absolute;
+  right: clamp(18px, 4vw, 34px);
+  bottom: clamp(18px, 4vw, 32px);
+  width: clamp(86px, 14vw, 124px);
+  aspect-ratio: 1;
+  border: 2px solid rgba(190, 43, 43, 0.82);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  background: radial-gradient(circle, rgba(80,0,0,0.18), rgba(0,0,0,0.08));
+  color: #d74949;
+  transform: rotate(-12deg);
+  box-shadow: inset 0 0 0 4px rgba(190, 43, 43, 0.16), 0 0 22px rgba(190, 43, 43, 0.12);
+  z-index: 3;
+}
+
+.purchase-seal span {
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.purchase-seal strong {
+  font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+  font-size: clamp(38px, 7vw, 58px);
+  line-height: 0.9;
+}
+
+.purchase-seal.manual {
+  border-style: dashed;
+}
+
+.purchase-seal-modal {
+  width: min(420px, calc(100vw - 30px));
+  padding: 26px;
+  border: 1px solid rgba(225, 199, 131, 0.58);
+  border-radius: 8px;
+  background: rgba(15, 14, 12, 0.98);
+  text-align: center;
+}
+
+.seal-mark {
+  width: 96px;
+  aspect-ratio: 1;
+  margin: 0 auto 16px;
+  border: 2px solid #c83f3f;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #d74949;
+  font: 800 54px/1 "Yu Mincho", serif;
+  transform: rotate(-10deg);
+}
+
 .point-strip {
   display: flex;
   align-items: baseline;
@@ -698,6 +772,99 @@ form {
 
 .coupon-grant-row button {
   flex: 0 0 auto;
+}
+
+.news-timeline {
+  display: grid;
+  gap: 14px;
+  max-width: 720px;
+  margin: 0 auto;
+}
+
+.news-post {
+  border: 1px solid rgba(225, 199, 131, 0.28);
+  border-radius: 8px;
+  background: rgba(18, 17, 15, 0.94);
+  overflow: hidden;
+}
+
+.news-post a,
+.news-post {
+  color: inherit;
+  text-decoration: none;
+}
+
+.news-post a,
+.news-post:not(.is-link) {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.news-author {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.news-avatar {
+  width: 42px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(225, 199, 131, 0.5);
+  color: var(--gold-2);
+  font-family: "Yu Mincho", serif;
+  font-weight: 800;
+}
+
+.news-author small {
+  display: block;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.news-post h2 {
+  margin: 0;
+  font-size: clamp(20px, 4.8vw, 30px);
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.news-post p {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.news-image {
+  width: 100%;
+  max-height: 420px;
+  object-fit: cover;
+  border-radius: 7px;
+  border: 1px solid rgba(225, 199, 131, 0.18);
+}
+
+.news-link-preview {
+  display: block;
+  padding: 10px 12px;
+  border: 1px solid rgba(225, 199, 131, 0.24);
+  border-radius: 7px;
+  color: var(--gold-2);
+  overflow-wrap: anywhere;
+  background: rgba(0,0,0,0.2);
+}
+
+.news-post > button {
+  margin: 0 16px 16px;
+  justify-self: start;
+}
+
+.purchase-admin-panel p {
+  color: var(--muted);
 }
 
 .modal-head h2 {
@@ -1129,6 +1296,17 @@ th { color: var(--gold-2); }
   }
   .rank-badge strong {
     font-size: 17px;
+  }
+  .purchase-seal {
+    width: 78px;
+    right: 18px;
+    bottom: 18px;
+  }
+  .purchase-seal span {
+    font-size: 9px;
+  }
+  .purchase-seal strong {
+    font-size: 38px;
   }
   .point-strip {
     margin-top: 12px;

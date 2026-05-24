@@ -101,6 +101,7 @@ const DEFAULT_SUPABASE_ANON_KEY = "sb_publishable_f4X3hypSAb24Dt__vhElKA_yT6vDa2
 const iconStorageKey = (userId) => `JUJU_ICON_${userId}`;
 const relicStorageKey = (userId) => `JUJU_FAVORITE_RELIC_${userId}`;
 const couponEnsuredKey = (userId) => `JUJU_COUPON_READY_${userId}`;
+const newsReadStorageKey = (userId) => `JUJU_NEWS_READ_${userId}`;
 const cfg = () => ({
   url: localStorage.getItem("SUPABASE_URL") || DEFAULT_SUPABASE_URL,
   anon: localStorage.getItem("SUPABASE_ANON_KEY") || DEFAULT_SUPABASE_ANON_KEY
@@ -224,6 +225,16 @@ function appErrorMessage(error) {
   return message;
 }
 
+function isMissingDbObject(error) {
+  const message = String(error?.message || "");
+  return (
+    message.includes("Could not find") ||
+    message.includes("schema cache") ||
+    message.includes("does not exist") ||
+    message.includes("function")
+  );
+}
+
 function userIcon(user) {
   return user.icon_url || localStorage.getItem(iconStorageKey(user.id)) || "";
 }
@@ -243,6 +254,32 @@ function currentFavoriteRelic(user, relics = []) {
     options.find((relic) => relic.name === storedName) ||
     null
   );
+}
+
+async function optionalQuery(query, fallback = []) {
+  const result = await query;
+  if (result.error) {
+    if (isMissingDbObject(result.error)) return { data: fallback, error: null };
+    throw result.error;
+  }
+  return result;
+}
+
+function storedReadNewsIds(userId) {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(newsReadStorageKey(userId)) || "[]"));
+  } catch {
+    return new Set();
+  }
+}
+
+function purchasePermissionFor(user, rank, permissions = []) {
+  const manual = permissions.find((permission) => permission.user_id === user.id && permission.is_active !== false);
+  return {
+    allowed: rank.n >= 5 || Boolean(manual),
+    manual: Boolean(manual),
+    reason: rank.n >= 5 ? "rank" : manual ? "manual" : "none"
+  };
 }
 
 async function ensureUserProfile(authUser) {
@@ -357,18 +394,25 @@ async function loadMyData() {
     .eq("auth_user_id", current.user.id)
     .maybeSingle();
 
-  const [visits, listens, points, coupons, horrors, relics] = await Promise.all([
+  const [visits, listens, points, coupons, horrors, relics, purchasePermissions, newsPosts, newsReads] = await Promise.all([
     supabase.from("visits").select("*").eq("user_id", user.id).order("visited_at", { ascending: false }),
     supabase.from("sound_horror_listens").select("*").eq("user_id", user.id).order("listened_at", { ascending: false }),
     supabase.from("point_events").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
     supabase.from("user_coupons").select("*, coupons(*)").eq("user_id", user.id).eq("status", "available").order("issued_at", { ascending: false }),
     supabase.from("sound_horrors").select("*").eq("is_active", true).order("title"),
-    supabase.from("relics").select("*").eq("is_active", true).order("name")
+    supabase.from("relics").select("*").eq("is_active", true).order("name"),
+    optionalQuery(supabase.from("user_purchase_permissions").select("*").eq("user_id", user.id).eq("is_active", true)),
+    optionalQuery(supabase.from("news_posts").select("*").eq("is_published", true).order("published_at", { ascending: false }).limit(50)),
+    optionalQuery(supabase.from("news_reads").select("news_post_id").eq("user_id", user.id))
   ]);
 
-  for (const result of [visits, listens, points, coupons, horrors, relics]) {
+  for (const result of [visits, listens, points, coupons, horrors, relics, purchasePermissions, newsPosts, newsReads]) {
     if (result.error) throw result.error;
   }
+
+  const readIds = new Set((newsReads.data || []).map((read) => read.news_post_id));
+  const localReadIds = storedReadNewsIds(user.id);
+  const unreadNewsCount = (newsPosts.data || []).filter((post) => !readIds.has(post.id) && !localReadIds.has(post.id)).length;
 
   return {
     profile: profile || { role: "user" },
@@ -378,7 +422,11 @@ async function loadMyData() {
     pointEvents: points.data || [],
     coupons: coupons.data || [],
     soundHorrors: currentSoundHorrors(horrors.data || []),
-    relics: relics.data || []
+    relics: relics.data || [],
+    purchasePermissions: purchasePermissions.data || [],
+    newsPosts: newsPosts.data || [],
+    newsReads: newsReads.data || [],
+    unreadNewsCount
   };
 }
 
@@ -416,18 +464,20 @@ async function loadAdminData(userId = null) {
   if (!["staff", "admin"].includes(profile?.role)) throw new Error("スタッフ権限がありません。");
 
   const usersQuery = supabase.from("admin_user_summaries").select("*").order("created_at", { ascending: false });
-  const [users, visits, listens, points, coupons] = await Promise.all([
+  const [users, visits, listens, points, coupons, purchasePermissions, newsPosts] = await Promise.all([
     userId ? supabase.from("users").select("*").eq("id", userId).single() : usersQuery,
     userId ? supabase.from("visits").select("*").eq("user_id", userId).order("visited_at", { ascending: false }) : supabase.from("visits").select("*").order("visited_at", { ascending: false }).limit(200),
     userId ? supabase.from("sound_horror_listens").select("*, sound_horrors(title)").eq("user_id", userId).order("listened_at", { ascending: false }) : supabase.from("sound_horror_listens").select("*").order("listened_at", { ascending: false }).limit(200),
     userId ? supabase.from("point_events").select("*").eq("user_id", userId).order("created_at", { ascending: false }) : supabase.from("point_events").select("*").order("created_at", { ascending: false }).limit(200),
-    userId ? supabase.from("user_coupons").select("*, coupons(*)").eq("user_id", userId) : supabase.from("coupons").select("*").order("created_at", { ascending: false })
+    userId ? supabase.from("user_coupons").select("*, coupons(*)").eq("user_id", userId) : supabase.from("coupons").select("*").order("created_at", { ascending: false }),
+    optionalQuery(userId ? supabase.from("user_purchase_permissions").select("*").eq("user_id", userId).eq("is_active", true) : supabase.from("user_purchase_permissions").select("*").eq("is_active", true)),
+    optionalQuery(supabase.from("news_posts").select("*").order("published_at", { ascending: false }).limit(100))
   ]);
 
-  for (const result of [users, visits, listens, points, coupons]) {
+  for (const result of [users, visits, listens, points, coupons, purchasePermissions, newsPosts]) {
     if (result.error) throw result.error;
   }
-  return { users: userId ? [users.data] : users.data, visits: visits.data, listens: listens.data, pointEvents: points.data, coupons: coupons.data };
+  return { users: userId ? [users.data] : users.data, visits: visits.data, listens: listens.data, pointEvents: points.data, coupons: coupons.data, purchasePermissions: purchasePermissions.data || [], newsPosts: newsPosts.data || [] };
 }
 
 async function handleLogin(event) {
@@ -944,17 +994,27 @@ async function grantCoupon(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
   try {
+    state = { busy: true, message: "", error: "" };
     if (isDemoAdmin()) {
       state = { busy: false, message: "デモ管理では直接付与の操作確認だけ行いました。", error: "" };
       render();
       return;
     }
     if (!supabase) throw new Error("Supabase接続が必要です。");
-    const { error } = await supabase.rpc("grant_coupon_to_user", {
+    const rpc = await supabase.rpc("grant_coupon_to_user", {
       target_user_id: form.get("user_id"),
       target_coupon_id: form.get("coupon_id")
     });
-    if (error) throw error;
+    if (rpc.error) {
+      if (!isMissingDbObject(rpc.error)) throw rpc.error;
+      const fallback = await supabase.from("user_coupons").upsert({
+        user_id: form.get("user_id"),
+        coupon_id: form.get("coupon_id"),
+        status: "available",
+        used_at: null
+      }, { onConflict: "user_id,coupon_id" });
+      if (fallback.error) throw fallback.error;
+    }
     state = { busy: false, message: "会員にクーポンを付与しました。", error: "" };
   } catch (error) {
     state = { busy: false, message: "", error: appErrorMessage(error) };
@@ -979,14 +1039,114 @@ async function deleteGrantedCoupon(userCouponId) {
   render();
 }
 
+async function grantPurchasePermission(event) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  try {
+    if (isDemoAdmin()) {
+      state = { busy: false, message: "デモ管理では購入資格刻印の付与操作を確認しました。", error: "" };
+      render();
+      return;
+    }
+    if (!supabase) throw new Error("Supabase接続が必要です。");
+    const { error } = await supabase.from("user_purchase_permissions").upsert({
+      user_id: form.get("user_id"),
+      memo: String(form.get("memo") || "").trim(),
+      is_active: true
+    }, { onConflict: "user_id" });
+    if (error) throw error;
+    state = { busy: false, message: "購入資格刻印を付与しました。", error: "" };
+  } catch (error) {
+    state = { busy: false, message: "", error: appErrorMessage(error) };
+  }
+  render();
+}
+
+async function revokePurchasePermission(userId) {
+  try {
+    if (isDemoAdmin()) {
+      state = { busy: false, message: "デモ管理では購入資格刻印の解除操作を確認しました。", error: "" };
+      render();
+      return;
+    }
+    if (!supabase) throw new Error("Supabase接続が必要です。");
+    const { error } = await supabase.from("user_purchase_permissions").update({ is_active: false }).eq("user_id", userId);
+    if (error) throw error;
+    state = { busy: false, message: "手動の購入資格刻印を解除しました。", error: "" };
+  } catch (error) {
+    state = { busy: false, message: "", error: appErrorMessage(error) };
+  }
+  render();
+}
+
+function sourceLabel(url) {
+  if (!url) return "JUJU";
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, "");
+    if (host.includes("x.com") || host.includes("twitter.com")) return "X";
+    if (host.includes("instagram.com")) return "Instagram";
+    if (host.includes("tiktok.com")) return "TikTok";
+    if (host.includes("youtube.com") || host.includes("youtu.be")) return "YouTube";
+    return host;
+  } catch {
+    return "Link";
+  }
+}
+
+async function createNewsPost(event) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  const url = String(form.get("url") || "").trim();
+  const title = String(form.get("title") || "").trim() || url || "NEWS";
+  try {
+    if (isDemoAdmin()) {
+      state = { busy: false, message: "デモ管理ではNEWS作成UIの確認だけ行いました。", error: "" };
+      render();
+      return;
+    }
+    if (!supabase) throw new Error("Supabase接続が必要です。");
+    const { error } = await supabase.from("news_posts").insert({
+      title,
+      body: String(form.get("body") || "").trim(),
+      image_url: String(form.get("image_url") || "").trim() || null,
+      external_url: url || null,
+      source_label: sourceLabel(url),
+      is_published: true,
+      published_at: new Date().toISOString()
+    });
+    if (error) throw error;
+    state = { busy: false, message: "NEWSを公開しました。", error: "" };
+  } catch (error) {
+    state = { busy: false, message: "", error: appErrorMessage(error) };
+  }
+  render();
+}
+
+async function deleteNewsPost(newsId) {
+  try {
+    if (isDemoAdmin()) {
+      state = { busy: false, message: "デモ管理ではNEWS削除の操作確認だけ行いました。", error: "" };
+      render();
+      return;
+    }
+    if (!supabase) throw new Error("Supabase接続が必要です。");
+    const { error } = await supabase.from("news_posts").update({ is_published: false }).eq("id", newsId);
+    if (error) throw error;
+    state = { busy: false, message: "NEWSを非公開にしました。", error: "" };
+  } catch (error) {
+    state = { busy: false, message: "", error: appErrorMessage(error) };
+  }
+  render();
+}
+
 function layout(content, admin = false) {
   return html`
     <header class="topbar">
       <button class="brand" data-link="${admin ? "/admin/dashboard" : "/member-card"}">cafeジュジュ</button>
       <nav>
         ${admin
-          ? `<button data-link="/admin/dashboard">管理</button><button data-link="/admin/users">登録者</button><button data-link="/admin/visits">履歴</button><button data-link="/admin/points">特別ポイント</button><button data-link="/admin/qr">QR表示</button><button data-link="/admin/coupons">クーポン</button>`
-          : `<button data-link="/member-card">会員証</button><button data-link="/coupons">クーポン</button><button data-link="/special-cards">特別カード</button>`}
+          ? `<button data-link="/admin/dashboard">管理</button><button data-link="/admin/users">登録者</button><button data-link="/admin/visits">履歴</button><button data-link="/admin/points">特別ポイント</button><button data-link="/admin/qr">QR表示</button><button data-link="/admin/coupons">クーポン</button><button data-link="/admin/news">NEWS</button>`
+          : `<button data-link="/member-card">会員証</button><button data-link="/coupons">クーポン</button><button data-link="/special-cards">特別カード</button><button class="news-nav-button" data-link="/news">NEWS${state.unreadNewsCount ? `<span class="news-badge">${state.unreadNewsCount}</span>` : ""}</button>`}
         <button data-action="logout">ログアウト</button>
       </nav>
     </header>
@@ -1128,6 +1288,8 @@ async function viewMemberCard() {
   const favoriteRelic = currentFavoriteRelic(data.user, data.relics);
   const favoriteLabel = favoriteRelic?.name || "推し呪物";
   const favoriteImage = favoriteRelic?.image || "";
+  const purchasePermission = purchasePermissionFor(data.user, rank, data.purchasePermissions || []);
+  state.unreadNewsCount = data.unreadNewsCount || 0;
 
   return layout(html`
     <section class="member-actions">
@@ -1154,6 +1316,7 @@ async function viewMemberCard() {
             </div>
           </div>
           <div class="rank-badge"><span>称号</span><strong>ランク${rank.n} ${rank.name}</strong></div>
+          ${purchasePermission.allowed ? `<button type="button" class="purchase-seal ${purchasePermission.manual ? "manual" : ""}" data-action="open-purchase-seal" data-no-flip><span>呪物購入資格</span><strong>許</strong></button>` : ""}
           <div class="point-strip">
             <span>現在ポイント</span>
             <strong>${points} pt</strong>
@@ -1183,7 +1346,20 @@ async function viewMemberCard() {
     </section>
     ${state.relicPicker ? relicPickerModal(relics, favoriteRelic) : ""}
     ${state.iconEditor ? iconEditorModal(state.iconEditor) : ""}
+    ${state.purchaseSealOpen ? purchaseSealModal() : ""}
   `);
+}
+
+function purchaseSealModal() {
+  return html`
+    <div class="modal-backdrop" data-action="close-purchase-seal">
+      <section class="purchase-seal-modal" data-no-flip>
+        <div class="seal-mark">許</div>
+        <h2>呪物購入資格</h2>
+        <p>貴方は呪物を購入する資格を持っています。</p>
+      </section>
+    </div>
+  `;
 }
 
 function viewScan() {
@@ -1328,6 +1504,67 @@ function viewSpecialCards() {
   `);
 }
 
+async function markNewsRead(userId, posts = []) {
+  const ids = posts.map((post) => post.id).filter(Boolean);
+  localStorage.setItem(newsReadStorageKey(userId), JSON.stringify(ids));
+  state.unreadNewsCount = 0;
+  if (!supabase || !ids.length) return;
+  const rows = ids.map((news_post_id) => ({ user_id: userId, news_post_id }));
+  const { error } = await supabase.from("news_reads").upsert(rows, { onConflict: "user_id,news_post_id" });
+  if (error && !isMissingDbObject(error)) throw error;
+}
+
+function newsPostCard(post, admin = false) {
+  const date = post.published_at ? yenDate(post.published_at) : yenDate(post.created_at);
+  const media = post.image_url ? `<img class="news-image" src="${post.image_url}" alt="${post.title}" />` : "";
+  const body = post.body ? `<p>${post.body}</p>` : "";
+  const source = post.source_label || sourceLabel(post.external_url || "");
+  const content = [
+    `<div class="news-author"><span class="news-avatar">呪</span><div><strong>cafeジュジュ</strong><small>${source} / ${date}</small></div></div>`,
+    `<h2>${post.title}</h2>`,
+    body,
+    media,
+    post.external_url ? `<span class="news-link-preview">${post.external_url}</span>` : ""
+  ].join("");
+  return html`
+    <article class="news-post ${post.external_url ? "is-link" : ""}">
+      ${post.external_url ? `<a href="${post.external_url}" target="_blank" rel="noopener noreferrer">${content}</a>` : content}
+      ${admin ? `<button type="button" data-action="delete-news" data-news-id="${post.id}">非公開</button>` : ""}
+    </article>
+  `;
+}
+
+async function viewNews() {
+  const data = await loadMyData();
+  const posts = data.newsPosts || [];
+  markNewsRead(data.user.id, posts).catch((error) => { state.error = appErrorMessage(error); });
+  return layout(html`
+    <section class="page-head"><h1>NEWS</h1><p>ジュジュからのお知らせを新しい順に表示します。</p></section>
+    <section class="news-timeline">
+      ${posts.length ? posts.map((post) => newsPostCard(post)).join("") : `<p class="empty">現在表示できるNEWSはありません。</p>`}
+    </section>
+  `);
+}
+
+async function viewAdminNews() {
+  const data = await loadAdminData();
+  const posts = data.newsPosts || [];
+  return layout(html`
+    ${adminModeBanner()}
+    <section class="page-head"><h1>NEWS管理</h1><p>イベント告知、SNS投稿、URLリンクをメンバーズカードのNEWSタイムラインへ追加します。</p></section>
+    <form class="grid-form admin-form news-form" data-form="news-create">
+      <label>タイトル<input name="title" placeholder="イベント名、投稿タイトルなど" /></label>
+      <label>本文<textarea name="body" rows="4" placeholder="告知本文。URLだけで投稿する場合は空でもOK"></textarea></label>
+      <label>画像URL<input name="image_url" type="url" placeholder="https://...jpg" /></label>
+      <label>SNS/外部URL<input name="url" type="url" placeholder="X、Instagram、TikTok、Webページなど" /></label>
+      <button class="primary" type="submit">NEWSを公開</button>
+    </form>
+    <section class="news-timeline admin-news-timeline">
+      ${posts.length ? posts.map((post) => newsPostCard(post, true)).join("") : `<p class="empty">NEWSはまだありません。</p>`}
+    </section>
+  `, true);
+}
+
 function adminModeBanner() {
   return isDemoAdmin()
     ? `<div class="setup-warning"><strong>デモ管理モードです</strong><p>表示中の登録者は確認用データです。実際に登録したユーザーを見るには、Supabase Authでログインしたアカウントの app_profiles.role を staff/admin にしてください。</p><button type="button" data-action="exit-demo-admin">デモを終了して実データログインへ</button></div>`
@@ -1430,6 +1667,7 @@ async function viewAdminUserDetail() {
   const points = sumRankPoints(data.pointEvents);
   const rank = rankFor(points);
   const listensByHorror = countBy(data.listens, "sound_horror_id");
+  const purchasePermission = purchasePermissionFor(user, rank, data.purchasePermissions || []);
   return layout(html`
     ${adminModeBanner()}
     <section class="page-head"><h1>${user.real_name}</h1><p>${user.member_number} / ${user.username}</p></section>
@@ -1440,10 +1678,20 @@ async function viewAdminUserDetail() {
       <div><span>年齢</span><strong>${user.age}</strong></div>
       <div><span>ランク</span><strong>${rank.name}</strong></div>
       <div><span>ランクポイント</span><strong>${points} pt</strong></div>
+      <div><span>呪物購入資格</span><strong>${purchasePermission.allowed ? "あり" : "なし"}</strong></div>
       <div><span>一階席</span><strong>${data.visits.filter((v) => v.visit_type === "first_floor").length}</strong></div>
       <div><span>二階席</span><strong>${data.visits.filter((v) => v.visit_type === "second_floor").length}</strong></div>
       <div><span>総体験</span><strong>${data.listens.length}</strong></div>
       <div><span>制覇作品数</span><strong>${Object.keys(listensByHorror).length}</strong></div>
+    </section>
+    <section class="list-section purchase-admin-panel"><h2>呪物購入資格刻印</h2>
+      <p>${purchasePermission.allowed ? "この会員は店内呪物を購入できる資格を持っています。" : "ランク5未満で、手動刻印もありません。"}</p>
+      <form class="grid-form admin-form compact" data-form="purchase-permission">
+        <input type="hidden" name="user_id" value="${user.id}" />
+        <label>付与メモ<input name="memo" placeholder="例外対応、店頭判断など" /></label>
+        <button class="primary" type="submit">低ランクでも刻印を付与</button>
+      </form>
+      ${purchasePermission.manual ? `<button type="button" data-action="revoke-purchase-permission" data-user-id="${user.id}">手動刻印を解除</button>` : ""}
     </section>
     <section class="list-section"><h2>来店履歴</h2>${data.visits.length ? data.visits.map((visit) => `<article class="item"><strong>${visitLabel(visit.visit_type)} / ${visit.point_value}pt</strong><span>${yenDate(visit.visited_at)}</span></article>`).join("") : `<p class="empty">来店履歴はまだありません。</p>`}</section>
     <section class="list-section"><h2>ポイント履歴</h2>${data.pointEvents.map((p) => `<article class="item"><strong>${p.point_type} / ${p.point_value}pt</strong><span>${p.memo || ""}</span><small>${yenDate(p.created_at)}</small></article>`).join("")}</section>
@@ -1560,6 +1808,7 @@ async function render() {
     else if (path === "/member-card") paintShell(await viewMemberCard());
     else if (path === "/scan") paintShell(viewScan());
     else if (path === "/coupons") paintShell(await viewCoupons());
+    else if (path === "/news") paintShell(await viewNews());
     else if (path === "/qr/visit") paintShell(await viewQrVisit());
     else if (path.startsWith("/qr/sound-horror/")) paintShell(await viewQrSound());
     else if (path.startsWith("/qr/special/")) paintShell(await viewQrSpecial());
@@ -1573,6 +1822,7 @@ async function render() {
     else if (path === "/admin/points") paintShell(await viewAdminPoints());
     else if (path === "/admin/qr") paintShell(await viewAdminQr());
     else if (path === "/admin/coupons") paintShell(await viewAdminCoupons());
+    else if (path === "/admin/news") paintShell(await viewAdminNews());
     else paintShell(layout(`<section class="empty-state">ページが見つかりません。</section>`));
   } catch (error) {
     state.error = appErrorMessage(error);
@@ -1656,6 +1906,17 @@ document.addEventListener("click", (event) => {
   if (action.dataset.action === "use-coupon") useCoupon(action.dataset.couponId);
   if (action.dataset.action === "claim-coupon") claimCoupon(action.dataset.couponId);
   if (action.dataset.action === "delete-granted-coupon") deleteGrantedCoupon(action.dataset.userCouponId);
+  if (action.dataset.action === "revoke-purchase-permission") revokePurchasePermission(action.dataset.userId);
+  if (action.dataset.action === "delete-news") deleteNewsPost(action.dataset.newsId);
+  if (action.dataset.action === "open-purchase-seal") {
+    state = { ...state, purchaseSealOpen: true };
+    render();
+  }
+  if (action.dataset.action === "close-purchase-seal") {
+    if (event.target.closest(".purchase-seal-modal")) return;
+    state = { ...state, purchaseSealOpen: false };
+    render();
+  }
   if (action.dataset.action === "start-qr-scanner") startQrScanner();
   if (action.dataset.action === "stop-qr-scanner") stopQrScanner();
   if (action.dataset.action === "open-qr-modal") {
@@ -1717,6 +1978,8 @@ document.addEventListener("submit", (event) => {
   if (form === "special-point") grantSpecialPoint(event);
   if (form === "coupon-create") createCoupon(event);
   if (form === "coupon-grant") grantCoupon(event);
+  if (form === "purchase-permission") grantPurchasePermission(event);
+  if (form === "news-create") createNewsPost(event);
 });
 
 window.addEventListener("popstate", render);

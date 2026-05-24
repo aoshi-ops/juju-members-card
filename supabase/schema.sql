@@ -169,6 +169,38 @@ create table if not exists public.special_card_entries (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.user_purchase_permissions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null unique references public.users(id) on delete cascade,
+  memo text,
+  is_active boolean not null default true,
+  granted_by uuid default auth.uid(),
+  granted_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.news_posts (
+  id uuid primary key default gen_random_uuid(),
+  title text not null,
+  body text,
+  image_url text,
+  external_url text,
+  source_label text,
+  is_published boolean not null default true,
+  created_by uuid default auth.uid(),
+  created_at timestamptz not null default now(),
+  published_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.news_reads (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  news_post_id uuid not null references public.news_posts(id) on delete cascade,
+  read_at timestamptz not null default now(),
+  unique (user_id, news_post_id)
+);
+
 grant usage on schema public to authenticated;
 grant usage on sequence public.member_number_seq to authenticated;
 grant select, insert, update, delete on
@@ -184,7 +216,10 @@ grant select, insert, update, delete on
   public.relics,
   public.sound_horrors,
   public.special_cards,
-  public.special_card_entries
+  public.special_card_entries,
+  public.user_purchase_permissions,
+  public.news_posts,
+  public.news_reads
 to authenticated;
 
 create or replace function public.is_staff()
@@ -636,6 +671,9 @@ alter table public.relics enable row level security;
 alter table public.sound_horrors enable row level security;
 alter table public.special_cards enable row level security;
 alter table public.special_card_entries enable row level security;
+alter table public.user_purchase_permissions enable row level security;
+alter table public.news_posts enable row level security;
+alter table public.news_reads enable row level security;
 
 drop policy if exists "profiles_select_own_or_staff" on public.app_profiles;
 create policy "profiles_select_own_or_staff" on public.app_profiles
@@ -749,6 +787,34 @@ for select using (user_id = public.current_app_user_id() or public.is_staff());
 drop policy if exists "special_entries_staff_write" on public.special_card_entries;
 create policy "special_entries_staff_write" on public.special_card_entries
 for all using (public.is_staff()) with check (public.is_staff());
+
+drop policy if exists "purchase_permissions_select_own_or_staff" on public.user_purchase_permissions;
+create policy "purchase_permissions_select_own_or_staff" on public.user_purchase_permissions
+for select using (user_id = public.current_app_user_id() or public.is_staff());
+
+drop policy if exists "purchase_permissions_staff_write" on public.user_purchase_permissions;
+create policy "purchase_permissions_staff_write" on public.user_purchase_permissions
+for all using (public.is_staff()) with check (public.is_staff());
+
+drop policy if exists "news_posts_public_published_or_staff" on public.news_posts;
+create policy "news_posts_public_published_or_staff" on public.news_posts
+for select using (is_published = true or public.is_staff());
+
+drop policy if exists "news_posts_staff_write" on public.news_posts;
+create policy "news_posts_staff_write" on public.news_posts
+for all using (public.is_staff()) with check (public.is_staff());
+
+drop policy if exists "news_reads_select_own_or_staff" on public.news_reads;
+create policy "news_reads_select_own_or_staff" on public.news_reads
+for select using (user_id = public.current_app_user_id() or public.is_staff());
+
+drop policy if exists "news_reads_insert_own" on public.news_reads;
+create policy "news_reads_insert_own" on public.news_reads
+for insert with check (user_id = public.current_app_user_id());
+
+drop policy if exists "news_reads_update_own" on public.news_reads;
+create policy "news_reads_update_own" on public.news_reads
+for update using (user_id = public.current_app_user_id()) with check (user_id = public.current_app_user_id());
 
 insert into public.member_ranks (rank_number, rank_name, min_point, max_point)
 values
