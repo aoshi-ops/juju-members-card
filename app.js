@@ -1053,7 +1053,7 @@ async function viewAdminQr() {
   return layout(html`
     ${adminModeBanner()}
     <section class="page-head"><h1>店舗QR表示</h1><p>スタッフが店頭で提示するQRです。お客さんが読み取ると、ログイン後に本人の履歴として記録されます。</p></section>
-    ${missingHorrors.length && supabase && !isDemoAdmin() ? `<p class="notice error">Supabase側に未登録のサウンドホラーがあります。schema.sql を再実行して作品一覧を更新してください: ${missingHorrors.join(" / ")}</p>` : ""}
+    ${missingHorrors.length && supabase && !isDemoAdmin() ? `<p class="notice error admin-only-notice">Supabase側に未登録のサウンドホラーがあります。schema.sql を再実行して作品一覧を更新してください: ${missingHorrors.join(" / ")}</p>` : ""}
     <section class="qr-grid">
       ${qrCard("一階席来店", "/qr/visit?type=first_floor", "1pt / 1日合計2回まで")}
       ${qrCard("二階席来店", "/qr/visit?type=second_floor", "1.5pt / 1日合計2回まで")}
