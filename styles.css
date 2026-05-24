@@ -327,6 +327,65 @@ form {
   pointer-events: none;
 }
 
+.member-symbols {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.favorite-relic-badge {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  width: clamp(88px, 13vw, 138px);
+  min-height: 54px;
+  padding: 8px 10px;
+  border: 1px solid rgba(225, 199, 131, 0.48);
+  border-left: 4px solid var(--gold);
+  border-radius: 14px 6px 14px 6px;
+  background:
+    linear-gradient(135deg, rgba(198, 168, 93, 0.18), rgba(198, 168, 93, 0.05)),
+    rgba(18, 18, 18, 0.82);
+  text-align: left;
+}
+
+.favorite-relic-badge span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.favorite-relic-badge strong {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--gold-2);
+  font-size: clamp(11px, 1.4vw, 15px);
+}
+
+.rank-badge {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: clamp(14px, 2.2vw, 24px);
+  padding: 10px 14px;
+  border: 1px solid rgba(225, 199, 131, 0.5);
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(198, 168, 93, 0.2), rgba(198, 168, 93, 0.06));
+}
+
+.rank-badge span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.rank-badge strong {
+  color: var(--gold-2);
+  font-size: clamp(16px, 2vw, 24px);
+}
+
 .point-strip {
   display: flex;
   align-items: baseline;
@@ -348,15 +407,14 @@ form {
   font-size: clamp(24px, 4vw, 44px);
 }
 
-.card-grid {
-  display: grid;
-  grid-template-columns: max-content 1fr;
-  gap: 9px 18px;
-  margin-top: clamp(14px, 2.5vw, 28px);
-  font-size: clamp(13px, 1.65vw, 20px);
+.mini-facts {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: clamp(12px, 1.5vw, 16px);
 }
-
-.card-grid span { color: var(--muted); }
 .profile-controls {
   position: static;
   margin-top: clamp(14px, 2vw, 24px);
@@ -414,6 +472,29 @@ form {
   justify-content: center;
   gap: 10px;
   margin: 0 0 16px;
+}
+
+.member-settings-panel {
+  width: min(980px, 100%);
+  margin: 0 auto 24px;
+  padding: 16px 18px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(20, 20, 20, 0.74);
+}
+
+.member-settings-panel h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.member-settings-panel p {
+  margin: 0 0 12px;
+  color: var(--muted);
+}
+
+.member-settings-panel label {
+  display: block;
 }
 
 .page-head {
@@ -594,24 +675,42 @@ th { color: var(--gold-2); }
     width: 76px;
     font-size: 32px;
   }
+  .member-symbols {
+    gap: 8px;
+  }
+  .favorite-relic-badge {
+    width: 88px;
+    min-height: 48px;
+    padding: 6px 8px;
+  }
+  .favorite-relic-badge span {
+    font-size: 9px;
+  }
+  .favorite-relic-badge strong {
+    font-size: 11px;
+  }
+  .rank-badge {
+    margin-top: 14px;
+    padding: 8px 12px;
+  }
+  .rank-badge span {
+    font-size: 11px;
+  }
+  .rank-badge strong {
+    font-size: 17px;
+  }
   .point-strip {
-    margin-top: 18px;
-    padding: 12px 14px;
+    margin-top: 12px;
+    padding: 10px 12px;
   }
   .point-strip span { font-size: 14px; }
   .point-strip strong {
-    font-size: 34px;
+    font-size: 36px;
   }
-  .card-grid {
-    grid-template-columns: max-content 1fr;
-    gap: 8px 14px;
-    margin-top: 16px;
-    font-size: 14px;
-  }
-  .card-grid strong {
-    margin-bottom: 0;
-    font-size: 16px;
-    text-align: right;
+  .mini-facts {
+    margin-top: 8px;
+    font-size: 12px;
+    line-height: 1.45;
   }
   .profile-controls {
     display: flex;

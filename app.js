@@ -763,6 +763,8 @@ async function viewMemberCard() {
   const completed = Object.keys(listensByHorror).length;
   const birthday = data.user.birthday_visible ? yenDate(data.user.birthday) : "非表示";
   const icon = userIcon(data.user);
+  const favoriteRelic = data.relics?.find((relic) => relic.id === data.user.favorite_relic_id);
+  const favoriteLabel = favoriteRelic?.name || "推し呪物";
 
   return layout(html`
     <section class="member-actions">
@@ -778,20 +780,22 @@ async function viewMemberCard() {
               <h1>${data.user.username}</h1>
               <p class="member-no">${data.user.member_number}</p>
             </div>
-            <label class="avatar" title="アイコンを変更">
-              ${icon ? `<img src="${icon}" alt="ユーザーアイコン" />` : `<span>${(data.user.username || "J").slice(0, 1).toUpperCase()}</span>`}
-              <input type="file" accept="image/*" data-action="icon-upload" />
-            </label>
+            <div class="member-symbols">
+              <label class="avatar" title="アイコンを変更">
+                ${icon ? `<img src="${icon}" alt="ユーザーアイコン" />` : `<span>${(data.user.username || "J").slice(0, 1).toUpperCase()}</span>`}
+                <input type="file" accept="image/*" data-action="icon-upload" />
+              </label>
+              <div class="favorite-relic-badge"><span>推し</span><strong>${favoriteLabel}</strong></div>
+            </div>
           </div>
+          <div class="rank-badge"><span>称号</span><strong>ランク${rank.n} ${rank.name}</strong></div>
           <div class="point-strip">
-            <span>現在のポイント</span>
+            <span>現在ポイント</span>
             <strong>${points} pt</strong>
           </div>
-          <div class="card-grid">
-            <span>誕生日</span><strong>${birthday}</strong>
-            <span>現在ランク</span><strong>ランク${rank.n} ${rank.name}</strong>
-            <span>ランクポイント</span><strong>${points} pt</strong>
-            <span>次のランクまで</span><strong>${next ? `${Math.max(0, next.min - points).toFixed(1)} pt` : "最高ランク"}</strong>
+          <div class="mini-facts">
+            <span>誕生日 ${birthday}</span>
+            <span>${next ? `次ランクまで ${Math.max(0, next.min - points).toFixed(1)}pt` : "最高ランク"}</span>
           </div>
           <div class="profile-controls">
             <label class="check"><input type="checkbox" data-action="birthday" ${data.user.birthday_visible ? "checked" : ""} /> 誕生日表示</label>
@@ -808,6 +812,11 @@ async function viewMemberCard() {
           </div>
         </article>
       </div>
+    </section>
+    <section class="member-settings-panel">
+      <h2>推し呪物設定</h2>
+      <p>画像素材を追加したら、ここを呪物アイコン付きの選択UIに差し替えます。</p>
+      ${data.relics?.length ? relicSelect(data.relics, data.user.favorite_relic_id) : `<p class="empty">推し呪物の候補はまだ登録されていません。</p>`}
     </section>
   `);
 }
