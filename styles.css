@@ -478,6 +478,8 @@ form {
 }
 
 .stamp {
+  position: relative;
+  overflow: hidden;
   min-height: 72px;
   border: 1px dashed #6f6041;
   border-radius: 7px;
@@ -486,6 +488,27 @@ form {
   justify-content: space-between;
   gap: 8px;
   color: #8f8778;
+}
+
+.stamp.has-image::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--stamp-image);
+  background-size: cover;
+  background-position: center;
+  opacity: 0.22;
+  filter: saturate(0.78) brightness(0.72);
+}
+
+.stamp.done.has-image::before {
+  opacity: 0.36;
+  filter: saturate(1) brightness(0.82);
+}
+
+.stamp > * {
+  position: relative;
+  z-index: 1;
 }
 
 .stamp.done {
@@ -698,22 +721,51 @@ form {
   background: rgba(15, 14, 12, 0.98);
 }
 
-.icon-crop-preview {
-  width: min(280px, 66vw);
+.icon-crop-stage {
+  position: relative;
+  width: min(360px, 78vw);
   aspect-ratio: 1;
   margin: 8px auto 18px;
   overflow: hidden;
-  border: 2px solid var(--gold);
-  border-radius: 50%;
+  border: 1px solid rgba(225, 199, 131, 0.42);
+  border-radius: 8px;
   background: #111;
+  touch-action: none;
+  cursor: grab;
 }
 
-.icon-crop-preview img {
+.icon-crop-stage:active {
+  cursor: grabbing;
+}
+
+.icon-crop-stage img {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
   object-position: var(--icon-x) var(--icon-y);
   transform: scale(var(--icon-zoom));
+  transform-origin: var(--icon-x) var(--icon-y);
+}
+
+.icon-crop-mask {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, transparent 0 39%, rgba(0,0,0,0.64) 40%);
+  pointer-events: none;
+}
+
+.icon-crop-circle {
+  position: absolute;
+  inset: 50%;
+  width: 72%;
+  aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border: 2px dashed rgba(255,255,255,0.9);
+  border-radius: 50%;
+  box-shadow: 0 0 0 999px rgba(0,0,0,0.04);
+  pointer-events: none;
 }
 
 .crop-controls {
@@ -924,6 +976,74 @@ th { color: var(--gold-2); }
   color: var(--gold-2);
   overflow-wrap: anywhere;
   font-size: 12px;
+}
+
+.qr-card,
+.coupon-admin-item {
+  cursor: zoom-in;
+}
+
+.qr-camera-box {
+  position: relative;
+  width: min(680px, 100%);
+  aspect-ratio: 4 / 3;
+  margin: 18px 0;
+  overflow: hidden;
+  border: 1px solid rgba(225, 199, 131, 0.44);
+  border-radius: 8px;
+  background: #050505;
+}
+
+.qr-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.qr-reticle {
+  position: absolute;
+  inset: 16%;
+  border: 2px solid rgba(225, 199, 131, 0.82);
+  border-radius: 12px;
+  box-shadow: 0 0 0 999px rgba(0,0,0,0.28);
+  pointer-events: none;
+}
+
+.qr-scan-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.qr-modal {
+  width: min(520px, calc(100vw - 28px));
+  padding: 18px;
+  border: 1px solid rgba(225, 199, 131, 0.58);
+  border-radius: 8px;
+  background: rgba(15, 14, 12, 0.98);
+  display: grid;
+  gap: 14px;
+  text-align: center;
+}
+
+.qr-modal img {
+  width: min(76vw, 360px);
+  aspect-ratio: 1;
+  justify-self: center;
+  padding: 10px;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.qr-modal strong {
+  color: var(--ink);
+  font-size: clamp(18px, 5vw, 28px);
+  line-height: 1.3;
+}
+
+.qr-modal code {
+  overflow-wrap: anywhere;
+  color: var(--gold-2);
 }
 
 @media (max-width: 780px) {

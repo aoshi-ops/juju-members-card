@@ -523,6 +523,78 @@ begin
 end;
 $$;
 
+create or replace function public.grant_coupon_to_user(target_user_id uuid, target_coupon_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  coupon_title text;
+begin
+  if not public.is_staff() then
+    raise exception 'スタッフ権限が必要です。';
+  end if;
+
+  select title into coupon_title
+  from public.coupons
+  where id = target_coupon_id
+    and is_active = true
+    and (expires_at is null or expires_at >= now());
+
+  if coupon_title is null then
+    raise exception '付与できるクーポンが見つかりません。';
+  end if;
+
+  if not exists (select 1 from public.users where id = target_user_id) then
+    raise exception '対象ユーザーが見つかりません。';
+  end if;
+
+  insert into public.user_coupons (user_id, coupon_id, status, used_at)
+  values (target_user_id, target_coupon_id, 'available', null)
+  on conflict (user_id, coupon_id) do update
+  set status = 'available',
+      used_at = null,
+      issued_at = now();
+
+  return jsonb_build_object('granted', true, 'message', coupon_title || 'を付与しました。');
+end;
+$$;
+
+create or replace function public.cleanup_my_coupons()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_user_id uuid;
+  deleted_count integer;
+begin
+  if auth.uid() is null then
+    raise exception 'ログインが必要です。';
+  end if;
+
+  select id into current_user_id from public.users where auth_user_id = auth.uid();
+  if current_user_id is null then
+    raise exception '会員情報がありません。';
+  end if;
+
+  delete from public.user_coupons uc
+  using public.coupons c
+  where uc.coupon_id = c.id
+    and uc.user_id = current_user_id
+    and (
+      uc.status in ('used', 'expired', 'disabled')
+      or c.is_active = false
+      or (c.expires_at is not null and c.expires_at < now())
+    );
+
+  get diagnostics deleted_count = row_count;
+  return jsonb_build_object('deleted', deleted_count);
+end;
+$$;
+
 create or replace view public.admin_user_summaries
 with (security_invoker = true)
 as
@@ -548,6 +620,8 @@ grant execute on function public.record_special_experience(text) to authenticate
 grant execute on function public.ensure_registration_coupon() to authenticated;
 grant execute on function public.claim_coupon(uuid) to authenticated;
 grant execute on function public.use_user_coupon(uuid) to authenticated;
+grant execute on function public.grant_coupon_to_user(uuid, uuid) to authenticated;
+grant execute on function public.cleanup_my_coupons() to authenticated;
 
 alter table public.app_profiles enable row level security;
 alter table public.users enable row level security;

@@ -36,6 +36,7 @@ const relicCatalog = [
   { id: "local-mother-puppet", name: "お母さん役の操り人形", image: "assets/relics/mother-puppet.jpg" },
   { id: "local-horseshoe", name: "坑内馬の蹄鉄", image: "assets/relics/horseshoe.jpg" }
 ];
+const relicImageByHorrorTitle = Object.fromEntries(relicCatalog.map((relic) => [relic.name, relic.image]));
 
 const demo = {
   profile: { role: "user" },
@@ -82,6 +83,11 @@ let supabase = null;
 let createClient = null;
 let session = null;
 let state = { busy: false, message: "", error: "" };
+let qrStream = null;
+let qrFrame = 0;
+let qrScanning = false;
+let iconDrag = null;
+let jsQrDecoder = null;
 
 const app = document.querySelector("#app");
 const scriptUrl = new URL(import.meta.url);
@@ -94,6 +100,7 @@ const DEFAULT_SUPABASE_URL = "https://qaiedhueykxoodagbkda.supabase.co";
 const DEFAULT_SUPABASE_ANON_KEY = "sb_publishable_f4X3hypSAb24Dt__vhElKA_yT6vDa2x";
 const iconStorageKey = (userId) => `JUJU_ICON_${userId}`;
 const relicStorageKey = (userId) => `JUJU_FAVORITE_RELIC_${userId}`;
+const couponEnsuredKey = (userId) => `JUJU_COUPON_READY_${userId}`;
 const cfg = () => ({
   url: localStorage.getItem("SUPABASE_URL") || DEFAULT_SUPABASE_URL,
   anon: localStorage.getItem("SUPABASE_ANON_KEY") || DEFAULT_SUPABASE_ANON_KEY
@@ -118,9 +125,11 @@ const appPath = () => {
 const publicUrl = (path) => `${BASE_PATH}${path}`;
 const absoluteUrl = (path) => new URL(publicUrl(path), location.origin).href;
 const navigate = (path) => {
+  stopQrScanner();
   history.pushState({}, "", publicUrl(path));
   render();
 };
+const replacePath = (path) => history.replaceState({}, "", publicUrl(path));
 
 function isDemoAdmin() {
   return localStorage.getItem(ADMIN_DEMO_STORAGE) === "true";
@@ -246,7 +255,7 @@ async function ensureUserProfile(authUser) {
   if (existing.error) throw existing.error;
   if (existing.data) {
     clearPendingRegistration();
-    await ensureRegistrationCoupon();
+    await ensureRegistrationCoupon(existing.data.id);
     return existing.data;
   }
 
@@ -270,14 +279,25 @@ async function saveUserProfile(payload) {
     .single();
   if (error) throw error;
   clearPendingRegistration();
-  await ensureRegistrationCoupon();
+  await ensureRegistrationCoupon(data.id);
   return data;
 }
 
-async function ensureRegistrationCoupon() {
+async function ensureRegistrationCoupon(userId) {
   if (!supabase) return;
+  if (userId && localStorage.getItem(couponEnsuredKey(userId))) return;
   const { error } = await supabase.rpc("ensure_registration_coupon");
   if (error && !String(error.message || "").includes("function")) throw error;
+  if (userId) localStorage.setItem(couponEnsuredKey(userId), "true");
+}
+
+async function cleanupUserCoupons(userId) {
+  if (!supabase || !userId) return;
+  const key = `JUJU_COUPON_CLEANUP_${userId}_${new Date().toISOString().slice(0, 10)}`;
+  if (sessionStorage.getItem(key)) return;
+  const { error } = await supabase.rpc("cleanup_my_coupons");
+  if (error && !String(error.message || "").includes("function")) throw error;
+  sessionStorage.setItem(key, "true");
 }
 
 async function initSupabase() {
@@ -330,6 +350,7 @@ async function loadMyData() {
   if (!current) throw new Error("ログインが必要です。");
 
   const user = await ensureUserProfile(current.user);
+  await cleanupUserCoupons(user.id);
   const { data: profile } = await supabase
     .from("app_profiles")
     .select("role")
@@ -340,7 +361,7 @@ async function loadMyData() {
     supabase.from("visits").select("*").eq("user_id", user.id).order("visited_at", { ascending: false }),
     supabase.from("sound_horror_listens").select("*").eq("user_id", user.id).order("listened_at", { ascending: false }),
     supabase.from("point_events").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
-    supabase.from("user_coupons").select("*, coupons(*)").eq("user_id", user.id).order("issued_at", { ascending: false }),
+    supabase.from("user_coupons").select("*, coupons(*)").eq("user_id", user.id).eq("status", "available").order("issued_at", { ascending: false }),
     supabase.from("sound_horrors").select("*").eq("is_active", true).order("title"),
     supabase.from("relics").select("*").eq("is_active", true).order("name")
   ]);
@@ -610,13 +631,15 @@ function iconEditorModal(editor) {
           <h2>アイコン位置調整</h2>
           <button type="button" data-action="close-icon-editor">閉じる</button>
         </div>
-        <div class="icon-crop-preview">
-          <img src="${editor.src}" alt="アイコンプレビュー" style="--icon-x:${editor.x}%;--icon-y:${editor.y}%;--icon-zoom:${editor.zoom};" />
+        <div class="icon-crop-stage" data-action="icon-crop-drag" style="--icon-x:${editor.x}%;--icon-y:${editor.y}%;--icon-zoom:${editor.zoom};">
+          <img src="${editor.src}" alt="アイコン位置調整画像" />
+          <div class="icon-crop-mask" aria-hidden="true"></div>
+          <div class="icon-crop-circle" aria-hidden="true"></div>
         </div>
         <div class="crop-controls">
           <label>左右<input type="range" min="0" max="100" value="${editor.x}" data-action="icon-crop-x" /></label>
           <label>上下<input type="range" min="0" max="100" value="${editor.y}" data-action="icon-crop-y" /></label>
-          <label>拡大<input type="range" min="1" max="2.4" step="0.05" value="${editor.zoom}" data-action="icon-crop-zoom" /></label>
+          <label>拡大<input type="range" min="1" max="3" step="0.05" value="${editor.zoom}" data-action="icon-crop-zoom" /></label>
         </div>
         <button class="primary" type="button" data-action="save-cropped-icon">この位置で保存</button>
       </section>
@@ -709,6 +732,82 @@ async function recordSpecialExperience(code) {
   render();
 }
 
+function stopQrScanner() {
+  qrScanning = false;
+  if (qrFrame) cancelAnimationFrame(qrFrame);
+  qrFrame = 0;
+  if (qrStream) qrStream.getTracks().forEach((track) => track.stop());
+  qrStream = null;
+}
+
+async function startQrScanner() {
+  try {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error("この端末ではブラウザからカメラを起動できません。");
+    }
+    const video = document.querySelector('[data-role="qr-video"]');
+    if (!video) return;
+    stopQrScanner();
+    state = { ...state, message: "QRを枠内に入れてください。読み取ると自動で進みます。", error: "" };
+    qrStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    });
+    video.srcObject = qrStream;
+    await video.play();
+    qrScanning = true;
+    const detector = "BarcodeDetector" in window ? new BarcodeDetector({ formats: ["qr_code"] }) : null;
+    let canvas = null;
+    let ctx = null;
+    if (!detector) {
+      if (!jsQrDecoder) {
+        const mod = await import("https://esm.sh/jsqr@1.4.0");
+        jsQrDecoder = mod.default || mod.jsQR || mod;
+      }
+      canvas = document.createElement("canvas");
+      ctx = canvas.getContext("2d", { willReadFrequently: true });
+    }
+    const scan = async () => {
+      if (!qrScanning) return;
+      try {
+        if (video.readyState >= 2) {
+          let value = "";
+          if (detector) {
+            const codes = await detector.detect(video);
+            value = codes[0]?.rawValue || "";
+          } else if (canvas && ctx && jsQrDecoder) {
+            const width = video.videoWidth;
+            const height = video.videoHeight;
+            if (width && height) {
+              canvas.width = width;
+              canvas.height = height;
+              ctx.drawImage(video, 0, 0, width, height);
+              const image = ctx.getImageData(0, 0, width, height);
+              value = jsQrDecoder(image.data, width, height, { inversionAttempts: "attemptBoth" })?.data || "";
+            }
+          }
+          if (value) {
+            stopQrScanner();
+            openQrValue(value);
+            return;
+          }
+        }
+      } catch (error) {
+        stopQrScanner();
+        state = { busy: false, message: "", error: appErrorMessage(error) };
+        render();
+        return;
+      }
+      qrFrame = requestAnimationFrame(scan);
+    };
+    qrFrame = requestAnimationFrame(scan);
+  } catch (error) {
+    stopQrScanner();
+    state = { busy: false, message: "", error: appErrorMessage(error) };
+    render();
+  }
+}
+
 async function decodeQrImage(file) {
   if (!file) return;
   try {
@@ -734,6 +833,7 @@ function openQrValue(value) {
       ? url.pathname.slice(BASE_PATH.length)
       : url.pathname;
     if (url.origin === location.origin || url.hostname.endsWith("github.io")) {
+      state = { ...state, qrNonce: Date.now(), qrProcessingKey: "" };
       navigate(`${path || "/"}${url.search || ""}`);
       return;
     }
@@ -772,6 +872,21 @@ async function useCoupon(couponId) {
     state = { busy: false, message: "", error: appErrorMessage(error), selectedCouponId: "" };
   }
   render();
+}
+
+function autoQrAction(key, action, label = "記録しています") {
+  const autoKey = `${key}:${state.qrNonce || "direct"}`;
+  if (state.qrProcessingKey !== autoKey) {
+    state = { ...state, qrProcessingKey: autoKey, busy: true, message: "", error: "" };
+    setTimeout(action, 0);
+  }
+  return layout(html`
+    <section class="action-panel">
+      <h1>${label}</h1>
+      <p>QRを読み取りました。ログイン中の会員証へ自動で反映します。</p>
+      <button data-link="/member-card">会員証へ戻る</button>
+    </section>
+  `);
 }
 
 async function grantSpecialPoint(event) {
@@ -835,11 +950,10 @@ async function grantCoupon(event) {
       return;
     }
     if (!supabase) throw new Error("Supabase接続が必要です。");
-    const { error } = await supabase.from("user_coupons").upsert({
-      user_id: form.get("user_id"),
-      coupon_id: form.get("coupon_id"),
-      status: "available"
-    }, { onConflict: "user_id,coupon_id", ignoreDuplicates: true });
+    const { error } = await supabase.rpc("grant_coupon_to_user", {
+      target_user_id: form.get("user_id"),
+      target_coupon_id: form.get("coupon_id")
+    });
     if (error) throw error;
     state = { busy: false, message: "会員にクーポンを付与しました。", error: "" };
   } catch (error) {
@@ -1058,7 +1172,11 @@ async function viewMemberCard() {
             <strong>総体験 ${visibleListens.length}回</strong>
           </div>
           <div class="stamp-grid">
-            ${horrors.map((horror) => `<div class="stamp ${listensByHorror[horror.id] ? "done" : ""}"><span class="horror-title">${listensByHorror[horror.id] ? horror.title : "？？？？？"}</span><b>${listensByHorror[horror.id] || 0}</b></div>`).join("")}
+            ${horrors.map((horror) => {
+              const image = relicImageByHorrorTitle[horror.title];
+              const count = listensByHorror[horror.id] || 0;
+              return `<div class="stamp ${count ? "done" : ""} ${image ? "has-image" : ""}" ${image ? `style="--stamp-image:url('${image}')"` : ""}><span class="horror-title">${count ? horror.title : "？？？？？"}</span><b>${count}</b></div>`;
+            }).join("")}
           </div>
         </article>
       </div>
@@ -1070,16 +1188,21 @@ async function viewMemberCard() {
 
 function viewScan() {
   return layout(html`
-    <section class="action-panel">
+    <section class="action-panel qr-scan-panel">
       <h1>QR読み取り</h1>
-      <p>端末のカメラで店頭QRを読み取ります。読み取ったQRの内容に応じて、来店・サウンドホラー・クーポン取得の画面へ進みます。</p>
-      <button class="primary" type="button" data-action="trigger-qr-camera">カメラを起動する</button>
-      <input class="visually-hidden" type="file" accept="image/*" capture="environment" data-action="qr-image" />
-      <button data-link="/member-card">会員証へ戻る</button>
+      <p>店頭QRをカメラにかざしてください。読み取ると自動で記録・取得画面へ進みます。</p>
+      <div class="qr-camera-box">
+        <video class="qr-video" playsinline muted data-role="qr-video"></video>
+        <div class="qr-reticle" aria-hidden="true"></div>
+      </div>
+      <div class="qr-scan-actions">
+        <button class="primary" type="button" data-action="start-qr-scanner">カメラを起動する</button>
+        <button type="button" data-action="stop-qr-scanner">停止</button>
+        <button data-link="/member-card">会員証へ戻る</button>
+      </div>
     </section>
   `);
 }
-
 function relicPicker(relics, current) {
   return `<div class="relic-picker">${relics.map((relic) => relicChoice(relic, current)).join("")}</div>`;
 }
@@ -1164,53 +1287,26 @@ function couponModal(userCoupon) {
 }
 
 async function viewQrVisit() {
-  const type = new URLSearchParams(location.search).get("type");
-  const label = type === "second_floor" ? "二階席来店" : "一階席来店";
-  return layout(html`
-    <section class="action-panel">
-      <h1>${label} QR</h1>
-      <p>ログイン中の本人にだけ来店履歴とポイントを記録します。1日の上限は一階席・二階席合計で2回です。</p>
-      <button class="primary" data-action="record-visit" data-type="${type === "second_floor" ? "second_floor" : "first_floor"}">来店を記録する</button>
-    </section>
-  `);
+  const type = new URLSearchParams(location.search).get("type") === "second_floor" ? "second_floor" : "first_floor";
+  const label = type === "second_floor" ? "2F visit" : "1F visit";
+  return autoQrAction(`visit:${type}`, () => recordVisit(type), `${label} recording`);
 }
 
 async function viewQrSound() {
   const id = decodeURIComponent(location.pathname.split("/").pop());
-  return layout(html`
-    <section class="action-panel">
-      <h1>サウンドホラー QR</h1>
-      <p>作品ID: ${id}</p>
-      <button class="primary" data-action="record-sound" data-id="${id}">体験を記録する</button>
-    </section>
-  `);
+  return autoQrAction(`sound:${id}`, () => recordSoundHorror(id), "Sound horror recording");
 }
 
 async function viewQrSpecial() {
   const code = decodeURIComponent(appPath().split("/").pop());
   const experience = specialExperiences.find((item) => item.code === code) || specialExperiences[0];
-  return layout(html`
-    <section class="action-panel">
-      <h1>${experience.title} QR</h1>
-      <p>この体験は会員証には表示せず、内部のポイント履歴として記録します。</p>
-      <button class="primary" data-action="record-special" data-code="${experience.code}">${experience.point}ptを記録する</button>
-      <button data-link="/member-card">会員証へ戻る</button>
-    </section>
-  `);
+  return autoQrAction(`special:${experience.code}`, () => recordSpecialExperience(experience.code), "Experience recording");
 }
 
 async function viewQrCoupon() {
   const couponId = decodeURIComponent(appPath().split("/").pop());
-  return layout(html`
-    <section class="action-panel">
-      <h1>クーポン取得QR</h1>
-      <p>ログイン中の会員証に、このクーポンを追加します。</p>
-      <button class="primary" data-action="claim-coupon" data-coupon-id="${couponId}">クーポンを取得する</button>
-      <button data-link="/coupons">クーポン一覧へ</button>
-    </section>
-  `);
+  return autoQrAction(`coupon:${couponId}`, () => claimCoupon(couponId), "Coupon claiming");
 }
-
 function viewSettings() {
   return layout(html`
     <section class="settings">
@@ -1259,7 +1355,26 @@ function qrUrl(path) {
 
 function qrCard(title, path, note) {
   const target = new URL(publicUrl(path), location.origin).href;
-  return `<article class="qr-card"><img src="${qrUrl(path)}" alt="${title} QR" /><div><h2>${title}</h2><p>${note}</p><code>${target}</code></div></article>`;
+  return `<article class="qr-card" data-action="open-qr-modal" data-qr-title="${encodeURIComponent(title)}" data-qr-path="${encodeURIComponent(path)}"><img src="${qrUrl(path)}" alt="${title} QR" /><div><h2>${title}</h2><p>${note}</p><code>${target}</code></div></article>`;
+}
+
+function qrModal(qr) {
+  const title = qr.title || "QR";
+  const path = qr.path || "/";
+  const target = new URL(publicUrl(path), location.origin).href;
+  return html`
+    <div class="modal-backdrop" data-action="close-qr-modal">
+      <section class="qr-modal">
+        <div class="modal-head">
+          <h2>QR拡大表示</h2>
+          <button type="button" data-action="close-qr-modal">閉じる</button>
+        </div>
+        <img src="${qrUrl(path)}" alt="${title} QR" />
+        <strong>${title}</strong>
+        <code>${target}</code>
+      </section>
+    </div>
+  `;
 }
 
 async function viewAdminDashboard() {
@@ -1373,6 +1488,7 @@ async function viewAdminQr() {
       ${horrors.map((horror) => qrCard(`サウンドホラー: ${horror.title}`, `/qr/sound-horror/${horror.id}`, "2pt / 同じ作品でも毎回記録")).join("")}
       ${specialExperiences.map((experience) => qrCard(`体験サービス: ${experience.title}`, `/qr/special/${experience.code}`, `${experience.point}pt / 会員管理用ポイント履歴に記録`)).join("")}
     </section>
+    ${state.qrModal ? qrModal(state.qrModal) : ""}
   `, true);
 }
 
@@ -1417,12 +1533,13 @@ async function viewAdminCoupons() {
     </form>
     <section class="list-section">
       <h2>作成済みクーポン</h2>
-      ${coupons.length ? coupons.map((c) => `<article class="coupon-admin-item"><div><strong>${c.title}</strong><span>${c.description || ""}</span><small>${c.expires_at ? yenDate(c.expires_at) : "無期限"}</small><code>${new URL(publicUrl(`/qr/coupon/${c.id}`), location.origin).href}</code></div><img src="${qrUrl(`/qr/coupon/${c.id}`)}" alt="${c.title} QR" /></article>`).join("") : `<p class="empty">登録済みクーポンはありません。</p>`}
+      ${coupons.length ? coupons.map((c) => `<article class="coupon-admin-item" data-action="open-qr-modal" data-qr-title="${encodeURIComponent(`クーポン: ${c.title}`)}" data-qr-path="${encodeURIComponent(`/qr/coupon/${c.id}`)}"><div><strong>${c.title}</strong><span>${c.description || ""}</span><small>${c.expires_at ? yenDate(c.expires_at) : "無期限"}</small><code>${new URL(publicUrl(`/qr/coupon/${c.id}`), location.origin).href}</code></div><img src="${qrUrl(`/qr/coupon/${c.id}`)}" alt="${c.title} QR" /></article>`).join("") : `<p class="empty">登録済みクーポンはありません。</p>`}
     </section>
     <section class="list-section">
       <h2>付与済みクーポン</h2>
       ${granted.length ? granted.map((item) => `<article class="item coupon-grant-row"><div><strong>${item.coupons?.title || "クーポン"}</strong><span>${item.users?.member_number || "-"} / ${item.users?.real_name || ""}</span><small>${couponStatusLabel(item.status)} / ${yenDate(item.issued_at)}</small></div><button type="button" data-action="delete-granted-coupon" data-user-coupon-id="${item.id}">削除</button></article>`).join("") : `<p class="empty">付与済みクーポンはまだありません。</p>`}
     </section>
+    ${state.qrModal ? qrModal(state.qrModal) : ""}
   `, true);
 }
 
@@ -1471,6 +1588,36 @@ function paintShell(markup) {
   app.innerHTML = markup;
 }
 
+function startIconCropDrag(event, stage = event.currentTarget) {
+  if (!state.iconEditor) return;
+  event.preventDefault();
+  iconDrag = {
+    rect: stage.getBoundingClientRect(),
+    startX: event.clientX,
+    startY: event.clientY,
+    x: state.iconEditor.x,
+    y: state.iconEditor.y
+  };
+  stage.setPointerCapture?.(event.pointerId);
+}
+
+function moveIconCropDrag(event) {
+  if (!iconDrag || !state.iconEditor) return;
+  const x = Math.min(100, Math.max(0, iconDrag.x - ((event.clientX - iconDrag.startX) / iconDrag.rect.width) * 100));
+  const y = Math.min(100, Math.max(0, iconDrag.y - ((event.clientY - iconDrag.startY) / iconDrag.rect.height) * 100));
+  state = { ...state, iconEditor: { ...state.iconEditor, x, y } };
+  const stage = document.querySelector(".icon-crop-stage");
+  if (stage) {
+    stage.style.setProperty("--icon-x", `${x}%`);
+    stage.style.setProperty("--icon-y", `${y}%`);
+  }
+}
+
+function endIconCropDrag() {
+  iconDrag = null;
+  if (state.iconEditor) render();
+}
+
 document.addEventListener("click", (event) => {
   const link = event.target.closest("[data-link]");
   if (link) {
@@ -1509,7 +1656,23 @@ document.addEventListener("click", (event) => {
   if (action.dataset.action === "use-coupon") useCoupon(action.dataset.couponId);
   if (action.dataset.action === "claim-coupon") claimCoupon(action.dataset.couponId);
   if (action.dataset.action === "delete-granted-coupon") deleteGrantedCoupon(action.dataset.userCouponId);
-  if (action.dataset.action === "trigger-qr-camera") document.querySelector('[data-action="qr-image"]')?.click();
+  if (action.dataset.action === "start-qr-scanner") startQrScanner();
+  if (action.dataset.action === "stop-qr-scanner") stopQrScanner();
+  if (action.dataset.action === "open-qr-modal") {
+    state = {
+      ...state,
+      qrModal: {
+        title: decodeURIComponent(action.dataset.qrTitle || "QR"),
+        path: decodeURIComponent(action.dataset.qrPath || "/")
+      }
+    };
+    render();
+  }
+  if (action.dataset.action === "close-qr-modal") {
+    if (event.target.closest(".qr-modal") && !event.target.closest("button")) return;
+    state = { ...state, qrModal: null };
+    render();
+  }
   if (action.dataset.action === "close-icon-editor") {
     if (event.target.closest(".icon-editor-modal") && !event.target.closest("button")) return;
     state = { ...state, iconEditor: null };
@@ -1528,11 +1691,19 @@ document.addEventListener("click", (event) => {
 document.addEventListener("change", (event) => {
   if (event.target.matches('[data-action="birthday"]')) toggleBirthday(event.target.checked);
   if (event.target.matches('[data-action="icon-upload"]')) updateIcon(event.target.files?.[0]);
-  if (event.target.matches('[data-action="qr-image"]')) decodeQrImage(event.target.files?.[0]);
   if (event.target.matches('[data-action="icon-crop-x"]')) setIconEditorValue("x", event.target.value);
   if (event.target.matches('[data-action="icon-crop-y"]')) setIconEditorValue("y", event.target.value);
   if (event.target.matches('[data-action="icon-crop-zoom"]')) setIconEditorValue("zoom", event.target.value);
 });
+
+document.addEventListener("pointerdown", (event) => {
+  const dragTarget = event.target.closest('[data-action="icon-crop-drag"]');
+  if (dragTarget) startIconCropDrag(event, dragTarget);
+});
+
+document.addEventListener("pointermove", moveIconCropDrag);
+document.addEventListener("pointerup", endIconCropDrag);
+document.addEventListener("pointercancel", endIconCropDrag);
 
 document.addEventListener("submit", (event) => {
   const form = event.target.dataset.form;
