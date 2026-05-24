@@ -592,18 +592,7 @@ async function updateIcon(file) {
 
   const reader = new FileReader();
   reader.onload = async () => {
-    const iconUrl = String(reader.result);
-    try {
-      const data = await loadMyData();
-      localStorage.setItem(iconStorageKey(data.user.id), iconUrl);
-      if (supabase) {
-        const { error } = await supabase.from("users").update({ icon_url: iconUrl }).eq("id", data.user.id);
-        if (error) throw error;
-      }
-      state = { busy: false, message: "アイコンを更新しました。", error: "" };
-    } catch (error) {
-      state = { busy: false, message: "", error: appErrorMessage(error) };
-    }
+    state = { ...state, iconEditor: { src: String(reader.result), x: 50, y: 50, zoom: 1.15 }, error: "" };
     render();
   };
   reader.onerror = () => {
@@ -611,6 +600,77 @@ async function updateIcon(file) {
     render();
   };
   reader.readAsDataURL(file);
+}
+
+function iconEditorModal(editor) {
+  return html`
+    <div class="modal-backdrop" data-action="close-icon-editor">
+      <section class="icon-editor-modal" data-no-flip>
+        <div class="modal-head">
+          <h2>アイコン位置調整</h2>
+          <button type="button" data-action="close-icon-editor">閉じる</button>
+        </div>
+        <div class="icon-crop-preview">
+          <img src="${editor.src}" alt="アイコンプレビュー" style="--icon-x:${editor.x}%;--icon-y:${editor.y}%;--icon-zoom:${editor.zoom};" />
+        </div>
+        <div class="crop-controls">
+          <label>左右<input type="range" min="0" max="100" value="${editor.x}" data-action="icon-crop-x" /></label>
+          <label>上下<input type="range" min="0" max="100" value="${editor.y}" data-action="icon-crop-y" /></label>
+          <label>拡大<input type="range" min="1" max="2.4" step="0.05" value="${editor.zoom}" data-action="icon-crop-zoom" /></label>
+        </div>
+        <button class="primary" type="button" data-action="save-cropped-icon">この位置で保存</button>
+      </section>
+    </div>
+  `;
+}
+
+function setIconEditorValue(key, value) {
+  if (!state.iconEditor) return;
+  state = { ...state, iconEditor: { ...state.iconEditor, [key]: Number(value) } };
+  render();
+}
+
+async function saveCroppedIcon() {
+  if (!state.iconEditor) return;
+  try {
+    const iconUrl = await cropIconToDataUrl(state.iconEditor);
+    const data = await loadMyData();
+    localStorage.setItem(iconStorageKey(data.user.id), iconUrl);
+    if (supabase) {
+      const { error } = await supabase.from("users").update({ icon_url: iconUrl }).eq("id", data.user.id);
+      if (error) throw error;
+    }
+    state = { busy: false, message: "アイコンを更新しました。", error: "", iconEditor: null };
+  } catch (error) {
+    state = { ...state, error: appErrorMessage(error) };
+  }
+  render();
+}
+
+function cropIconToDataUrl(editor) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      const size = 420;
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#111";
+      ctx.fillRect(0, 0, size, size);
+      const scale = Math.max(size / image.width, size / image.height) * editor.zoom;
+      const drawW = image.width * scale;
+      const drawH = image.height * scale;
+      const minX = size - drawW;
+      const minY = size - drawH;
+      const x = drawW > size ? minX * (editor.x / 100) : (size - drawW) / 2;
+      const y = drawH > size ? minY * (editor.y / 100) : (size - drawH) / 2;
+      ctx.drawImage(image, x, y, drawW, drawH);
+      resolve(canvas.toDataURL("image/jpeg", 0.88));
+    };
+    image.onerror = () => reject(new Error("画像を読み込めませんでした。"));
+    image.src = editor.src;
+  });
 }
 
 async function recordVisit(type) {
@@ -647,6 +707,40 @@ async function recordSpecialExperience(code) {
     state = { busy: false, message: "", error: appErrorMessage(error) };
   }
   render();
+}
+
+async function decodeQrImage(file) {
+  if (!file) return;
+  try {
+    if (!("BarcodeDetector" in window)) {
+      throw new Error("このブラウザでは画像からのQR読み取りに対応していません。標準カメラアプリでQRを読み取ってください。");
+    }
+    const bitmap = await createImageBitmap(file);
+    const detector = new BarcodeDetector({ formats: ["qr_code"] });
+    const codes = await detector.detect(bitmap);
+    const value = codes[0]?.rawValue;
+    if (!value) throw new Error("QRコードを読み取れませんでした。明るい場所でもう一度撮影してください。");
+    openQrValue(value);
+  } catch (error) {
+    state = { busy: false, message: "", error: appErrorMessage(error) };
+    render();
+  }
+}
+
+function openQrValue(value) {
+  try {
+    const url = new URL(value, location.origin);
+    const path = BASE_PATH && url.pathname.startsWith(`${BASE_PATH}/`)
+      ? url.pathname.slice(BASE_PATH.length)
+      : url.pathname;
+    if (url.origin === location.origin || url.hostname.endsWith("github.io")) {
+      navigate(`${path || "/"}${url.search || ""}`);
+      return;
+    }
+    location.assign(url.href);
+  } catch {
+    throw new Error("QRコードのURLを開けませんでした。");
+  }
 }
 
 async function claimCoupon(couponId) {
@@ -926,7 +1020,6 @@ async function viewMemberCard() {
       <button class="primary" data-link="/scan">QRを読み取る</button>
     </section>
     <section class="card-stage">
-      <button class="coupon-float" data-link="/coupons">クーポン</button>
       <div class="flip-card" data-action="flip-card">
         <article class="member-card face front">
           <div class="card-row">
@@ -971,6 +1064,7 @@ async function viewMemberCard() {
       </div>
     </section>
     ${state.relicPicker ? relicPickerModal(relics, favoriteRelic) : ""}
+    ${state.iconEditor ? iconEditorModal(state.iconEditor) : ""}
   `);
 }
 
@@ -978,12 +1072,10 @@ function viewScan() {
   return layout(html`
     <section class="action-panel">
       <h1>QR読み取り</h1>
-      <p>スマホのカメラで店頭QRを読み取るか、下のテスト用ボタンから記録画面を開けます。実際の記録はログイン中の本人にだけ紐づきます。</p>
-      <div class="admin-actions">
-        <button class="primary" data-link="/qr/visit?type=first_floor">一階席来店を記録</button>
-        <button class="primary" data-link="/qr/visit?type=second_floor">二階席来店を記録</button>
-        <button data-link="/member-card">会員証へ戻る</button>
-      </div>
+      <p>端末のカメラで店頭QRを読み取ります。読み取ったQRの内容に応じて、来店・サウンドホラー・クーポン取得の画面へ進みます。</p>
+      <button class="primary" type="button" data-action="trigger-qr-camera">カメラを起動する</button>
+      <input class="visually-hidden" type="file" accept="image/*" capture="environment" data-action="qr-image" />
+      <button data-link="/member-card">会員証へ戻る</button>
     </section>
   `);
 }
@@ -1417,6 +1509,13 @@ document.addEventListener("click", (event) => {
   if (action.dataset.action === "use-coupon") useCoupon(action.dataset.couponId);
   if (action.dataset.action === "claim-coupon") claimCoupon(action.dataset.couponId);
   if (action.dataset.action === "delete-granted-coupon") deleteGrantedCoupon(action.dataset.userCouponId);
+  if (action.dataset.action === "trigger-qr-camera") document.querySelector('[data-action="qr-image"]')?.click();
+  if (action.dataset.action === "close-icon-editor") {
+    if (event.target.closest(".icon-editor-modal") && !event.target.closest("button")) return;
+    state = { ...state, iconEditor: null };
+    render();
+  }
+  if (action.dataset.action === "save-cropped-icon") saveCroppedIcon();
   if (action.dataset.action === "flip-card") {
     if (event.target.closest("[data-no-flip], .avatar, .favorite-relic-badge, .profile-controls")) return;
     action.classList.toggle("is-flipped");
@@ -1429,6 +1528,10 @@ document.addEventListener("click", (event) => {
 document.addEventListener("change", (event) => {
   if (event.target.matches('[data-action="birthday"]')) toggleBirthday(event.target.checked);
   if (event.target.matches('[data-action="icon-upload"]')) updateIcon(event.target.files?.[0]);
+  if (event.target.matches('[data-action="qr-image"]')) decodeQrImage(event.target.files?.[0]);
+  if (event.target.matches('[data-action="icon-crop-x"]')) setIconEditorValue("x", event.target.value);
+  if (event.target.matches('[data-action="icon-crop-y"]')) setIconEditorValue("y", event.target.value);
+  if (event.target.matches('[data-action="icon-crop-zoom"]')) setIconEditorValue("zoom", event.target.value);
 });
 
 document.addEventListener("submit", (event) => {
