@@ -143,6 +143,9 @@ create table if not exists public.user_coupons (
   used_at timestamptz
 );
 
+create unique index if not exists user_coupons_user_coupon_key
+on public.user_coupons (user_id, coupon_id);
+
 create table if not exists public.special_cards (
   id uuid primary key default gen_random_uuid(),
   title text not null,
@@ -402,6 +405,124 @@ begin
 end;
 $$;
 
+create or replace function public.ensure_registration_coupon()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_user_id uuid;
+  target_coupon_id uuid;
+begin
+  if auth.uid() is null then
+    raise exception 'ログインが必要です。';
+  end if;
+
+  select id into current_user_id from public.users where auth_user_id = auth.uid();
+  if current_user_id is null then
+    raise exception '会員情報がありません。';
+  end if;
+
+  insert into public.coupons (title, description, expires_at, usage_limit, is_active)
+  select '会員登録キャンペーンクーポン', 'サウンドホラー一回無料（￥1,000作品のみ対象）', null, 1, true
+  where not exists (
+    select 1 from public.coupons where title = '会員登録キャンペーンクーポン'
+  );
+
+  select id into target_coupon_id
+  from public.coupons
+  where title = '会員登録キャンペーンクーポン'
+  order by created_at
+  limit 1;
+
+  insert into public.user_coupons (user_id, coupon_id, status)
+  values (current_user_id, target_coupon_id, 'available')
+  on conflict (user_id, coupon_id) do nothing;
+
+  return jsonb_build_object('granted', true, 'coupon_id', target_coupon_id);
+end;
+$$;
+
+create or replace function public.claim_coupon(target_coupon_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_user_id uuid;
+  coupon_title text;
+begin
+  if auth.uid() is null then
+    raise exception 'ログインが必要です。';
+  end if;
+
+  select id into current_user_id from public.users where auth_user_id = auth.uid();
+  if current_user_id is null then
+    raise exception '会員情報がありません。';
+  end if;
+
+  select title into coupon_title
+  from public.coupons
+  where id = target_coupon_id
+    and is_active = true
+    and (expires_at is null or expires_at >= now());
+
+  if coupon_title is null then
+    raise exception '取得できるクーポンが見つかりません。';
+  end if;
+
+  insert into public.user_coupons (user_id, coupon_id, status)
+  values (current_user_id, target_coupon_id, 'available')
+  on conflict (user_id, coupon_id) do nothing;
+
+  return jsonb_build_object('claimed', true, 'message', coupon_title || 'を取得しました。');
+end;
+$$;
+
+create or replace function public.use_user_coupon(user_coupon_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_user_id uuid;
+  coupon_title text;
+begin
+  if auth.uid() is null then
+    raise exception 'ログインが必要です。';
+  end if;
+
+  select id into current_user_id from public.users where auth_user_id = auth.uid();
+  if current_user_id is null then
+    raise exception '会員情報がありません。';
+  end if;
+
+  select c.title into coupon_title
+  from public.user_coupons uc
+  join public.coupons c on c.id = uc.coupon_id
+  where uc.id = user_coupon_id
+    and uc.user_id = current_user_id
+    and uc.status = 'available'
+    and c.is_active = true
+    and (c.expires_at is null or c.expires_at >= now());
+
+  if coupon_title is null then
+    raise exception '使用できるクーポンが見つかりません。';
+  end if;
+
+  update public.user_coupons
+  set status = 'used',
+      used_at = now()
+  where id = user_coupon_id
+    and user_id = current_user_id;
+
+  return jsonb_build_object('used', true, 'message', coupon_title || 'を使用済みにしました。');
+end;
+$$;
+
 create or replace view public.admin_user_summaries
 with (security_invoker = true)
 as
@@ -424,6 +545,9 @@ grant execute on function public.current_app_user_id() to authenticated;
 grant execute on function public.record_visit(text) to authenticated;
 grant execute on function public.record_sound_horror(uuid) to authenticated;
 grant execute on function public.record_special_experience(text) to authenticated;
+grant execute on function public.ensure_registration_coupon() to authenticated;
+grant execute on function public.claim_coupon(uuid) to authenticated;
+grant execute on function public.use_user_coupon(uuid) to authenticated;
 
 alter table public.app_profiles enable row level security;
 alter table public.users enable row level security;
@@ -579,6 +703,23 @@ from (values
 where not exists (
   select 1 from public.relics existing where existing.name = relic.name
 );
+
+insert into public.coupons (title, description, expires_at, usage_limit, is_active)
+select '会員登録キャンペーンクーポン', 'サウンドホラー一回無料（￥1,000作品のみ対象）', null, 1, true
+where not exists (
+  select 1 from public.coupons where title = '会員登録キャンペーンクーポン'
+);
+
+insert into public.user_coupons (user_id, coupon_id, status)
+select u.id, c.id, 'available'
+from public.users u
+cross join lateral (
+  select id from public.coupons
+  where title = '会員登録キャンペーンクーポン'
+  order by created_at
+  limit 1
+) c
+on conflict (user_id, coupon_id) do nothing;
 
 insert into public.sound_horrors (title, description, is_active)
 values

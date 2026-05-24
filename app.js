@@ -24,6 +24,10 @@ const currentSoundHorrors = (horrors = []) =>
 const specialExperiences = [
   { code: "sange-box", title: "さんげの箱", point: 3 }
 ];
+const welcomeCoupon = {
+  title: "会員登録キャンペーンクーポン",
+  description: "サウンドホラー一回無料（￥1,000作品のみ対象）"
+};
 const relicCatalog = [
   { id: "local-byoudon-mamori", name: "病呑守り", image: "assets/relics/byoudon-mamori.jpg" },
   { id: "local-sange-box", name: "さんげの箱", image: "assets/relics/sange-box.jpg" },
@@ -62,7 +66,14 @@ const demo = {
     { point_type: "sound_horror", point_value: 2, rank_affects: true, created_at: new Date().toISOString() },
     { point_type: "sound_horror", point_value: 2, rank_affects: true, created_at: new Date().toISOString() }
   ],
-  coupons: [],
+  coupons: [
+    {
+      id: "demo-user-coupon-1",
+      status: "available",
+      issued_at: new Date().toISOString(),
+      coupons: { id: "demo-coupon-1", title: welcomeCoupon.title, description: welcomeCoupon.description, expires_at: null }
+    }
+  ],
   relics: relicCatalog,
   users: []
 };
@@ -237,6 +248,7 @@ async function ensureUserProfile(authUser) {
   if (existing.error) throw existing.error;
   if (existing.data) {
     clearPendingRegistration();
+    await ensureRegistrationCoupon();
     return existing.data;
   }
 
@@ -260,7 +272,14 @@ async function saveUserProfile(payload) {
     .single();
   if (error) throw error;
   clearPendingRegistration();
+  await ensureRegistrationCoupon();
   return data;
+}
+
+async function ensureRegistrationCoupon() {
+  if (!supabase) return;
+  const { error } = await supabase.rpc("ensure_registration_coupon");
+  if (error && !String(error.message || "").includes("function")) throw error;
 }
 
 async function initSupabase() {
@@ -642,6 +661,37 @@ async function recordSpecialExperience(code) {
   render();
 }
 
+async function claimCoupon(couponId) {
+  try {
+    if (!supabase) throw new Error("デモ表示ではクーポン取得を保存できません。Supabase接続後に試してください。");
+    const { data, error } = await supabase.rpc("claim_coupon", { target_coupon_id: couponId });
+    if (error) throw error;
+    state = { busy: false, message: data.message || "クーポンを取得しました。", error: "" };
+    navigate("/coupons");
+  } catch (error) {
+    state = { busy: false, message: "", error: appErrorMessage(error) };
+    render();
+  }
+}
+
+async function useCoupon(couponId) {
+  try {
+    if (!supabase) {
+      const target = demo.coupons.find((coupon) => coupon.id === couponId);
+      if (target) target.status = "used";
+      state = { busy: false, message: "クーポンを使用済みにしました。", error: "", selectedCouponId: "" };
+      render();
+      return;
+    }
+    const { data, error } = await supabase.rpc("use_user_coupon", { user_coupon_id: couponId });
+    if (error) throw error;
+    state = { busy: false, message: data.message || "クーポンを使用済みにしました。", error: "", selectedCouponId: "" };
+  } catch (error) {
+    state = { busy: false, message: "", error: appErrorMessage(error), selectedCouponId: "" };
+  }
+  render();
+}
+
 async function grantSpecialPoint(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
@@ -662,6 +712,54 @@ async function grantSpecialPoint(event) {
     });
     if (error) throw error;
     state = { busy: false, message: "特別ポイントを付与しました。", error: "" };
+  } catch (error) {
+    state = { busy: false, message: "", error: appErrorMessage(error) };
+  }
+  render();
+}
+
+async function createCoupon(event) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  try {
+    if (isDemoAdmin()) {
+      state = { busy: false, message: "デモ管理では作成UIだけ確認できます。実保存はSupabase staff/admin権限で行います。", error: "" };
+      render();
+      return;
+    }
+    if (!supabase) throw new Error("Supabase接続が必要です。");
+    const { error } = await supabase.from("coupons").insert({
+      title: String(form.get("title") || "").trim(),
+      description: String(form.get("description") || "").trim(),
+      expires_at: form.get("expires_at") || null,
+      usage_limit: 1,
+      is_active: true
+    });
+    if (error) throw error;
+    state = { busy: false, message: "クーポンを作成しました。", error: "" };
+  } catch (error) {
+    state = { busy: false, message: "", error: appErrorMessage(error) };
+  }
+  render();
+}
+
+async function grantCoupon(event) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  try {
+    if (isDemoAdmin()) {
+      state = { busy: false, message: "デモ管理では直接付与の操作確認だけ行いました。", error: "" };
+      render();
+      return;
+    }
+    if (!supabase) throw new Error("Supabase接続が必要です。");
+    const { error } = await supabase.from("user_coupons").upsert({
+      user_id: form.get("user_id"),
+      coupon_id: form.get("coupon_id"),
+      status: "available"
+    }, { onConflict: "user_id,coupon_id", ignoreDuplicates: true });
+    if (error) throw error;
+    state = { busy: false, message: "会員にクーポンを付与しました。", error: "" };
   } catch (error) {
     state = { busy: false, message: "", error: appErrorMessage(error) };
   }
@@ -872,11 +970,6 @@ async function viewMemberCard() {
         </article>
       </div>
     </section>
-    <section class="member-settings-panel">
-      <h2>推し呪物設定</h2>
-      <p>会員証の推し呪物枠をタップして変更できます。</p>
-      ${relicPicker(relics, favoriteRelic)}
-    </section>
     ${state.relicPicker ? relicPickerModal(relics, favoriteRelic) : ""}
   `);
 }
@@ -925,20 +1018,57 @@ function relicChoice(relic, current) {
 
 async function viewCoupons() {
   const data = await loadMyData();
-  const groups = {
-    available: data.coupons.filter((c) => c.status === "available"),
-    used: data.coupons.filter((c) => c.status === "used"),
-    expired: data.coupons.filter((c) => c.status === "expired")
-  };
+  const selected = data.coupons.find((coupon) => coupon.id === state.selectedCouponId);
   return layout(html`
-    <section class="page-head"><h1>クーポン</h1><p>利用可能・使用済み・期限切れを本人のデータだけで表示します。</p></section>
-    ${["available", "used", "expired"].map((key) => couponSection(key, groups[key])).join("")}
+    <section class="page-head"><h1>クーポン</h1><p>使用時はスタッフに画面を見せてください。</p></section>
+    <section class="coupon-wallet">
+      ${data.coupons.length ? data.coupons.map(couponTicket).join("") : `<p class="empty">現在利用できるクーポンはありません。</p>`}
+    </section>
+    ${selected ? couponModal(selected) : ""}
   `);
 }
 
-function couponSection(key, items) {
-  const label = { available: "利用可能", used: "使用済み", expired: "期限切れ" }[key];
-  return `<section class="list-section"><h2>${label}</h2>${items.length ? items.map((item) => `<article class="item"><strong>${item.coupons?.title || "クーポン"}</strong><span>${item.coupons?.description || ""}</span><small>${yenDate(item.coupons?.expires_at)}</small></article>`).join("") : `<p class="empty">現在利用できるクーポンはありません。</p>`}</section>`;
+function couponMeta(userCoupon) {
+  return userCoupon.coupons || userCoupon;
+}
+
+function couponStatusLabel(status) {
+  return { available: "使用可能", used: "使用済み", expired: "期限切れ", disabled: "無効" }[status] || status || "使用可能";
+}
+
+function couponTicket(userCoupon) {
+  const coupon = couponMeta(userCoupon);
+  const expires = coupon.expires_at ? yenDate(coupon.expires_at) : "無期限";
+  return html`
+    <button type="button" class="coupon-ticket ${userCoupon.status || ""}" data-action="open-coupon" data-coupon-id="${userCoupon.id}">
+      <span class="ticket-kicker">${couponStatusLabel(userCoupon.status)}</span>
+      <strong>${coupon.title || "クーポン"}</strong>
+      <small>${expires}</small>
+    </button>
+  `;
+}
+
+function couponModal(userCoupon) {
+  const coupon = couponMeta(userCoupon);
+  const expires = coupon.expires_at ? yenDate(coupon.expires_at) : "無期限";
+  return html`
+    <div class="modal-backdrop" data-action="close-coupon">
+      <section class="coupon-modal">
+        <div class="modal-head">
+          <h2>${coupon.title || "クーポン"}</h2>
+          <button type="button" data-action="close-coupon">閉じる</button>
+        </div>
+        <div class="coupon-large">
+          <span>${couponStatusLabel(userCoupon.status)}</span>
+          <strong>${coupon.title || "クーポン"}</strong>
+          <p>${coupon.description || ""}</p>
+          <small>${expires}</small>
+        </div>
+        <p class="notice">使用時はスタッフに画面を見せてください。</p>
+        ${userCoupon.status === "available" ? `<button class="primary use-coupon" data-action="use-coupon" data-coupon-id="${userCoupon.id}">使用する</button>` : ""}
+      </section>
+    </div>
+  `;
 }
 
 async function viewQrVisit() {
@@ -973,6 +1103,18 @@ async function viewQrSpecial() {
       <p>この体験は会員証には表示せず、内部のポイント履歴として記録します。</p>
       <button class="primary" data-action="record-special" data-code="${experience.code}">${experience.point}ptを記録する</button>
       <button data-link="/member-card">会員証へ戻る</button>
+    </section>
+  `);
+}
+
+async function viewQrCoupon() {
+  const couponId = decodeURIComponent(appPath().split("/").pop());
+  return layout(html`
+    <section class="action-panel">
+      <h1>クーポン取得QR</h1>
+      <p>ログイン中の会員証に、このクーポンを追加します。</p>
+      <button class="primary" data-action="claim-coupon" data-coupon-id="${couponId}">クーポンを取得する</button>
+      <button data-link="/coupons">クーポン一覧へ</button>
     </section>
   `);
 }
@@ -1172,9 +1314,25 @@ async function viewAdminPoints() {
 
 async function viewAdminCoupons() {
   const data = await loadAdminData();
+  const coupons = data.coupons || [];
   return layout(html`
-    <section class="page-head"><h1>クーポン管理</h1><p>Ver.0.2 では管理構造の土台として一覧を表示します。</p></section>
-    <section class="list-section">${data.coupons.length ? data.coupons.map((c) => `<article class="item"><strong>${c.title || c.coupons?.title}</strong><span>${c.description || c.status || ""}</span><small>${yenDate(c.expires_at || c.issued_at)}</small></article>`).join("") : `<p class="empty">登録済みクーポンはありません。</p>`}</section>
+    ${adminModeBanner()}
+    <section class="page-head"><h1>クーポン管理</h1><p>タイトルと説明文だけのシンプルなクーポンを作成し、QR取得または会員への直接付与ができます。</p></section>
+    <form class="grid-form admin-form" data-form="coupon-create">
+      <label>クーポンのタイトル<input name="title" required placeholder="会員登録キャンペーンクーポン" /></label>
+      <label>内容説明文<textarea name="description" rows="3" required placeholder="サウンドホラー一回無料（￥1,000作品のみ対象）"></textarea></label>
+      <label>使用期限<input name="expires_at" type="date" /></label>
+      <button class="primary">クーポンを作成</button>
+    </form>
+    <form class="grid-form admin-form" data-form="coupon-grant">
+      <label>対象ユーザー<select name="user_id" required>${(data.users || []).map((u) => `<option value="${u.id}">${u.member_number} / ${u.real_name}</option>`).join("")}</select></label>
+      <label>付与クーポン<select name="coupon_id" required>${coupons.map((c) => `<option value="${c.id}">${c.title}</option>`).join("")}</select></label>
+      <button class="primary">会員に直接付与</button>
+    </form>
+    <section class="list-section">
+      <h2>作成済みクーポン</h2>
+      ${coupons.length ? coupons.map((c) => `<article class="coupon-admin-item"><div><strong>${c.title}</strong><span>${c.description || ""}</span><small>${c.expires_at ? yenDate(c.expires_at) : "無期限"}</small><code>${new URL(publicUrl(`/qr/coupon/${c.id}`), location.origin).href}</code></div><img src="${qrUrl(`/qr/coupon/${c.id}`)}" alt="${c.title} QR" /></article>`).join("") : `<p class="empty">登録済みクーポンはありません。</p>`}
+    </section>
   `, true);
 }
 
@@ -1198,6 +1356,7 @@ async function render() {
     else if (path === "/qr/visit") paintShell(await viewQrVisit());
     else if (path.startsWith("/qr/sound-horror/")) paintShell(await viewQrSound());
     else if (path.startsWith("/qr/special/")) paintShell(await viewQrSpecial());
+    else if (path.startsWith("/qr/coupon/")) paintShell(await viewQrCoupon());
     else if (path === "/settings") paintShell(viewSettings());
     else if (path === "/special-cards") paintShell(viewSpecialCards());
     else if (path === "/admin" || path === "/admin/dashboard") paintShell(await viewAdminDashboard());
@@ -1248,6 +1407,17 @@ document.addEventListener("click", (event) => {
     render();
   }
   if (action.dataset.action === "favorite-relic") setFavoriteRelic(action.dataset.relicId, action.dataset.relicName);
+  if (action.dataset.action === "open-coupon") {
+    state = { ...state, selectedCouponId: action.dataset.couponId };
+    render();
+  }
+  if (action.dataset.action === "close-coupon") {
+    if (event.target.closest(".coupon-modal") && !event.target.closest("button")) return;
+    state = { ...state, selectedCouponId: "" };
+    render();
+  }
+  if (action.dataset.action === "use-coupon") useCoupon(action.dataset.couponId);
+  if (action.dataset.action === "claim-coupon") claimCoupon(action.dataset.couponId);
   if (action.dataset.action === "flip-card") {
     if (event.target.closest("[data-no-flip], .avatar, .favorite-relic-badge, .profile-controls")) return;
     action.classList.toggle("is-flipped");
@@ -1272,6 +1442,8 @@ document.addEventListener("submit", (event) => {
   if (form === "complete-profile") handleCompleteProfile(event);
   if (form === "config") handleConfig(event);
   if (form === "special-point") grantSpecialPoint(event);
+  if (form === "coupon-create") createCoupon(event);
+  if (form === "coupon-grant") grantCoupon(event);
 });
 
 window.addEventListener("popstate", render);
