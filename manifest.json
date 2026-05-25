@@ -1,5 +1,6 @@
 {
   "name": "cafeジュジュ メンバーズカード",
+  "id": "./member-card",
   "short_name": "cafeジュジュ",
   "description": "呪物cafeジュジュの会員証、来店記録、サウンドホラースタンプカード。",
   "start_url": "member-card",

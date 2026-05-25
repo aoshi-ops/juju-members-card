@@ -1,8 +1,9 @@
 {
   "name": "cafeジュジュ 管理アプリ",
+  "id": "./admin/login",
   "short_name": "ジュジュ管理",
   "description": "cafeジュジュのスタッフ向け会員・クーポン・QR管理アプリ",
-  "start_url": "admin/login",
+  "start_url": "./admin/login",
   "scope": "./",
   "display": "standalone",
   "background_color": "#090909",

@@ -1,13 +1,15 @@
 :root {
   color-scheme: dark;
-  --bg: #090909;
-  --panel: #141414;
-  --panel-2: #1e1c18;
-  --line: #3b3428;
-  --gold: #c8a85d;
-  --gold-2: #e1c783;
-  --ink: #f5efe1;
-  --muted: #b8aea0;
+  --bg: #140f0a;
+  --paper: #c9ad76;
+  --paper-2: #9b7845;
+  --panel: rgba(42, 28, 16, 0.78);
+  --panel-2: rgba(78, 52, 28, 0.68);
+  --line: rgba(78, 48, 24, 0.68);
+  --gold: #b78939;
+  --gold-2: #f0d58b;
+  --ink: #f7ecd2;
+  --muted: #d8c79f;
   --danger: #ff8a8a;
   --ok: #a6e2b0;
 }
@@ -18,12 +20,28 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 18% 10%, rgba(198, 168, 93, 0.12), transparent 34%),
-    linear-gradient(135deg, #060606, #15120d 58%, #080808);
+    radial-gradient(circle at 12% 14%, rgba(255, 226, 150, 0.16), transparent 28%),
+    radial-gradient(circle at 84% 8%, rgba(99, 45, 22, 0.22), transparent 30%),
+    repeating-linear-gradient(8deg, rgba(255,255,255,0.026) 0 1px, transparent 1px 9px),
+    linear-gradient(135deg, #25170d, #7a5831 42%, #1a1009);
   color: var(--ink);
   font-family: "Yu Gothic UI", "Hiragino Sans", system-ui, sans-serif;
   letter-spacing: 0;
   overflow-x: hidden;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.2;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255,245,210,0.18), transparent 2px),
+    radial-gradient(circle at 72% 48%, rgba(67,35,16,0.28), transparent 2px),
+    radial-gradient(circle at 45% 80%, rgba(255,255,255,0.12), transparent 1px);
+  background-size: 90px 90px, 130px 130px, 56px 56px;
+  mix-blend-mode: overlay;
 }
 
 button, input, select, textarea {
@@ -32,7 +50,7 @@ button, input, select, textarea {
 
 button {
   border: 1px solid var(--line);
-  background: #171717;
+  background: rgba(36, 24, 14, 0.86);
   color: var(--ink);
   min-height: 40px;
   padding: 0 14px;
@@ -63,7 +81,7 @@ input, select, textarea {
   width: 100%;
   margin-top: 6px;
   border: 1px solid var(--line);
-  background: #0e0e0e;
+  background: rgba(26, 17, 10, 0.86);
   color: var(--ink);
   border-radius: 6px;
   padding: 11px 12px;
@@ -80,18 +98,27 @@ label { color: var(--muted); }
   justify-content: space-between;
   gap: 16px;
   padding: 12px clamp(14px, 3vw, 28px);
-  background: rgba(9, 9, 9, 0.9);
+  background: rgba(19, 12, 7, 0.9);
   backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--line);
 }
 
 .brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   border: 0;
   background: transparent;
   color: var(--gold-2);
   font-weight: 800;
   font-size: 18px;
   padding: 0;
+}
+
+.brand img {
+  width: 34px;
+  height: 24px;
+  object-fit: contain;
 }
 
 nav {
@@ -138,7 +165,9 @@ nav button {
 
 .auth-panel {
   width: min(460px, 100%);
-  background: rgba(20, 20, 20, 0.92);
+  background:
+    linear-gradient(135deg, rgba(62, 39, 21, 0.9), rgba(22, 14, 8, 0.94)),
+    var(--panel);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 28px;
@@ -278,23 +307,63 @@ form {
   -webkit-backface-visibility: hidden;
   transform-style: preserve-3d;
   border-radius: 8px;
-  border: 1px solid rgba(225, 199, 131, 0.55);
+  border: 1px solid rgba(80, 48, 20, 0.76);
   padding: clamp(18px, 3.4vw, 38px);
   overflow: hidden;
-  box-shadow: 0 34px 90px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 34px 90px rgba(0, 0, 0, 0.45), inset 0 0 90px rgba(50, 25, 9, 0.34);
 }
 
 .front {
   transform: rotateY(0deg);
   background:
-    linear-gradient(125deg, rgba(225, 199, 131, 0.18), transparent 34%),
-    repeating-linear-gradient(90deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 12px),
-    #151515;
+    radial-gradient(circle at 16% 12%, rgba(255, 237, 185, 0.28), transparent 30%),
+    radial-gradient(circle at 84% 86%, rgba(62, 31, 12, 0.28), transparent 34%),
+    repeating-linear-gradient(92deg, rgba(84, 48, 19, 0.12) 0 1px, transparent 1px 14px),
+    linear-gradient(135deg, rgba(177, 139, 73, 0.98), rgba(77, 46, 20, 0.95));
 }
 
 .back {
   transform: rotateY(180deg);
-  background: #211d15;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(255, 237, 185, 0.2), transparent 28%),
+    repeating-linear-gradient(90deg, rgba(84, 48, 19, 0.14) 0 1px, transparent 1px 14px),
+    linear-gradient(145deg, rgba(146, 109, 56, 0.98), rgba(50, 31, 15, 0.98));
+}
+
+.member-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 14% 16%, rgba(255, 246, 214, 0.18), transparent 12%),
+    radial-gradient(circle at 74% 58%, rgba(57, 31, 12, 0.18), transparent 10%),
+    repeating-linear-gradient(11deg, rgba(255,255,255,0.035) 0 1px, transparent 1px 7px);
+  mix-blend-mode: overlay;
+}
+
+.member-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.card-brand-logo {
+  position: absolute;
+  z-index: 0;
+  right: -8%;
+  bottom: -14%;
+  width: min(58%, 420px);
+  opacity: 0.13;
+  filter: sepia(1) saturate(0.55);
+  pointer-events: none;
+}
+
+.back-logo {
+  left: -6%;
+  right: auto;
+  bottom: -18%;
+  opacity: 0.1;
 }
 
 .card-row, .stamp-head {
@@ -608,6 +677,55 @@ form {
   justify-content: center;
   gap: 10px;
   margin: 0 0 16px;
+}
+
+.member-actions .compact-action {
+  min-height: 32px;
+  padding: 0 14px;
+  border-radius: 6px;
+  line-height: 1;
+}
+
+.member-actions .save-action {
+  min-width: 58px;
+}
+
+.user-main:has(.card-stage)::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  opacity: 0.22;
+  background:
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.12) 0 1px, transparent 1px 4px),
+    radial-gradient(circle at 20% 30%, rgba(255,255,255,0.16), transparent 1px),
+    radial-gradient(circle at 80% 60%, rgba(0,0,0,0.4), transparent 2px);
+  background-size: 100% 100%, 90px 90px, 130px 130px;
+  mix-blend-mode: soft-light;
+  animation: filmNoise 0.42s steps(2, end) infinite;
+}
+
+.user-main:has(.card-stage)::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 41;
+  pointer-events: none;
+  opacity: 0.2;
+  background: repeating-linear-gradient(0deg, transparent 0 7px, rgba(0,0,0,0.22) 7px 8px);
+  animation: filmRoll 1.4s linear infinite;
+}
+
+@keyframes filmNoise {
+  0% { transform: translate3d(0,0,0); filter: contrast(1.1); }
+  50% { transform: translate3d(-1.5%, 1%, 0); filter: contrast(1.35); }
+  100% { transform: translate3d(1%, -1.5%, 0); filter: contrast(1.05); }
+}
+
+@keyframes filmRoll {
+  from { background-position-y: 0; }
+  to { background-position-y: 80px; }
 }
 
 .coupon-wallet {
@@ -1132,7 +1250,9 @@ form {
 }
 
 .list-section, .settings, .action-panel, .empty-state, .table-wrap, .admin-form, .intake-panel {
-  background: rgba(20, 20, 20, 0.88);
+  background:
+    linear-gradient(135deg, rgba(62, 39, 21, 0.82), rgba(22, 14, 8, 0.9)),
+    rgba(20, 20, 20, 0.88);
   border: 1px solid var(--line);
   border-radius: 8px;
   padding: 20px;
@@ -1144,6 +1264,29 @@ form {
   flex-wrap: wrap;
   gap: 10px;
   margin: 18px 0;
+}
+
+.admin-search {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(38, 25, 14, 0.72);
+}
+
+.history-scroll {
+  max-height: 520px;
+  overflow-y: auto;
+  padding-right: 8px;
+  scrollbar-color: var(--gold) rgba(23, 14, 8, 0.75);
+}
+
+.history-scroll .item:nth-of-type(n + 11) {
+  opacity: 0.78;
 }
 
 .intake-panel h2 { margin: 0 0 10px; }
@@ -1336,7 +1479,11 @@ th { color: var(--gold-2); }
     margin: 0 0 14px;
   }
   .member-actions .primary {
-    min-width: min(78vw, 320px);
+    min-width: 0;
+  }
+  .member-actions .compact-action {
+    min-height: 34px;
+    padding: 0 12px;
   }
   .card-stage {
     display: block;
@@ -1351,6 +1498,11 @@ th { color: var(--gold-2); }
   .member-card {
     padding: 18px;
     overflow: hidden;
+  }
+  .card-brand-logo {
+    width: 72%;
+    right: -18%;
+    bottom: -10%;
   }
   .card-row { align-items: center; }
   .eyebrow {
@@ -1473,6 +1625,12 @@ th { color: var(--gold-2); }
   }
   .coupon-admin-item { grid-template-columns: 1fr; }
   .coupon-admin-item img { width: 132px; height: 132px; }
+  .admin-search {
+    grid-template-columns: 1fr;
+  }
+  .history-scroll {
+    max-height: 420px;
+  }
   .section-head,
   .analytics-chart {
     grid-template-columns: 1fr;

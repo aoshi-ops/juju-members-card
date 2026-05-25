@@ -105,6 +105,7 @@ const BASE_PATH = scriptUrl.pathname.replace(/\/app\.js$/, "").replace(/\/$/, ""
 const ADMIN_DEMO_ID = "joujoustaff";
 const ADMIN_DEMO_PASSWORD = "joujoufirstanniversary";
 const ADMIN_DEMO_STORAGE = "JUJU_ADMIN_DEMO_AUTH";
+const ADMIN_APP_STORAGE = "JUJU_ADMIN_APP";
 const PENDING_REGISTRATION_STORAGE = "JUJU_PENDING_REGISTRATION";
 const DEFAULT_SUPABASE_URL = "https://qaiedhueykxoodagbkda.supabase.co";
 const DEFAULT_SUPABASE_ANON_KEY = "sb_publishable_f4X3hypSAb24Dt__vhElKA_yT6vDa2x";
@@ -144,6 +145,10 @@ const replacePath = (path) => history.replaceState({}, "", publicUrl(path));
 
 function isDemoAdmin() {
   return localStorage.getItem(ADMIN_DEMO_STORAGE) === "true";
+}
+
+function rememberAdminApp() {
+  if (appPath().startsWith("/admin")) localStorage.setItem(ADMIN_APP_STORAGE, "true");
 }
 
 function demoAdminData() {
@@ -1078,6 +1083,8 @@ async function grantCoupon(event) {
   if (!event.currentTarget.reportValidity()) return;
   const submitter = event.submitter;
   if (submitter) submitter.disabled = true;
+  const submitterText = submitter?.textContent;
+  if (submitter) submitter.textContent = "付与中";
   const form = new FormData(event.currentTarget);
   try {
     state = { busy: true, message: "", error: "" };
@@ -1106,7 +1113,10 @@ async function grantCoupon(event) {
   } catch (error) {
     state = { busy: false, message: "", error: appErrorMessage(error) };
   } finally {
-    if (submitter) submitter.disabled = false;
+    if (submitter) {
+      submitter.disabled = false;
+      submitter.textContent = submitterText || "会員に直接付与";
+    }
   }
   render();
 }
@@ -1187,6 +1197,8 @@ async function createNewsPost(event) {
   if (!event.currentTarget.reportValidity()) return;
   const submitter = event.submitter;
   if (submitter) submitter.disabled = true;
+  const submitterText = submitter?.textContent;
+  if (submitter) submitter.textContent = "送信中";
   const form = new FormData(event.currentTarget);
   const url = String(form.get("url") || "").trim();
   const body = String(form.get("body") || "").trim();
@@ -1217,8 +1229,18 @@ async function createNewsPost(event) {
   } catch (error) {
     state = { busy: false, message: "", error: appErrorMessage(error) };
   } finally {
-    if (submitter) submitter.disabled = false;
+    if (submitter) {
+      submitter.disabled = false;
+      submitter.textContent = submitterText || "NEWSを公開";
+    }
   }
+  render();
+}
+
+function handleAdminUserSearch(event) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  state = { ...state, adminUserSearch: String(form.get("query") || "").trim() };
   render();
 }
 
@@ -1240,9 +1262,10 @@ async function deleteNewsPost(newsId) {
 }
 
 function layout(content, admin = false) {
+  if (admin) localStorage.setItem(ADMIN_APP_STORAGE, "true");
   return html`
     <header class="topbar">
-      <button class="brand" data-link="${admin ? "/admin/dashboard" : "/member-card"}">cafeジュジュ</button>
+      <button class="brand" data-link="${admin ? "/admin/dashboard" : "/member-card"}"><img src="assets/brand/joujou_logo_white.png" alt="" aria-hidden="true" />cafeジュジュ</button>
       <nav>
         ${admin
           ? `<button data-link="/admin/dashboard">管理</button><button data-link="/admin/users">登録者</button><button data-link="/admin/visits">履歴</button><button data-link="/admin/points">特別ポイント</button><button data-link="/admin/qr">QR表示</button><button data-link="/admin/coupons">クーポン</button><button data-link="/admin/news">NEWS</button>`
@@ -1262,6 +1285,10 @@ function notice() {
 }
 
 async function viewLogin() {
+  if (localStorage.getItem(ADMIN_APP_STORAGE) === "true" && (appPath() === "/" || appPath() === "/login")) {
+    replacePath("/admin/login");
+    return viewAdminLogin();
+  }
   const current = isConfigured() ? await currentSession() : null;
   if (current?.user && !appPath().startsWith("/admin")) {
     navigate("/member-card");
@@ -1281,7 +1308,6 @@ async function viewLogin() {
         </form>
         <div class="auth-links">
           <button data-link="/register">会員登録</button>
-          <button data-link="/member-card">デモ表示</button>
         </div>
       </section>
     </main>
@@ -1293,12 +1319,8 @@ function viewAdminLogin() {
     <main class="auth-page">
       <section class="auth-panel">
         <h1>スタッフ管理ログイン</h1>
-        <p>仮ログインは管理UIの確認用です。本番データの閲覧・更新は Supabase の app_profiles.role が staff/admin のアカウントだけで実行します。</p>
+        <p>スタッフ権限のあるアカウントで管理画面を開きます。</p>
         ${notice()}
-        <div class="demo-credential">
-          <span>デモ用ID</span><strong>${ADMIN_DEMO_ID}</strong>
-          <span>デモ用パスワード</span><strong>${ADMIN_DEMO_PASSWORD}</strong>
-        </div>
         <form data-form="admin-login">
           <label>スタッフID<input name="staff_id" required autocomplete="username" /></label>
           <label>パスワード<input name="password" type="password" required autocomplete="current-password" /></label>
@@ -1393,12 +1415,13 @@ async function viewMemberCard() {
 
   return layout(html`
     <section class="member-actions">
-      <button class="primary" data-link="/scan">QRを読み取る</button>
-      <button type="button" data-action="save-card-image">画像を保存</button>
+      <button class="primary compact-action" data-link="/scan">QRを読み取る</button>
+      <button class="compact-action save-action" type="button" data-action="save-card-image" aria-label="会員証を保存">保存</button>
     </section>
     <section class="card-stage">
       <div class="flip-card" data-action="flip-card">
         <article class="member-card face front">
+          <img class="card-brand-logo" src="assets/brand/joujou_logo_black.png" alt="" aria-hidden="true" />
           <div class="card-row">
             <div>
               <p class="eyebrow">MEMBERS CARD</p>
@@ -1431,6 +1454,7 @@ async function viewMemberCard() {
           </div>
         </article>
         <article class="member-card face back">
+          <img class="card-brand-logo back-logo" src="assets/brand/joujou_logo_black.png" alt="" aria-hidden="true" />
           <div class="stamp-head">
             <div><p class="eyebrow">SOUND HORROR</p><h2>${completed} / ${horrors.length}</h2></div>
             <strong>総体験 ${visibleListens.length}回</strong>
@@ -1668,8 +1692,8 @@ async function viewAdminNews() {
     <form class="grid-form admin-form news-form" data-form="news-create">
       <label>タイトル<input name="title" placeholder="イベント名、投稿タイトルなど" /></label>
       <label>本文<textarea name="body" rows="4" placeholder="告知本文。URLだけで投稿する場合は空でもOK"></textarea></label>
-      <label>画像URL<input name="image_url" type="url" placeholder="https://...jpg" /></label>
-      <label>SNS/外部URL<input name="url" type="url" placeholder="X、Instagram、TikTok、Webページなど" /></label>
+      <label>画像URL<input name="image_url" placeholder="https://...jpg" /></label>
+      <label>SNS/外部URL<input name="url" placeholder="X、Instagram、TikTok、Webページなど" /></label>
       <button class="primary" type="submit">NEWSを公開</button>
     </form>
     <section class="news-timeline admin-news-timeline">
@@ -1802,24 +1826,11 @@ function pieChart(segments) {
 
 async function viewAdminDashboard() {
   const data = await loadAdminData();
-  const users = data.users || [];
   const mode = state.analyticsMode || "gender";
   const segments = adminAnalyticsSegments(data, mode);
   return layout(html`
     ${adminModeBanner()}
     <section class="page-head"><h1>スタッフ管理</h1><p>スタッフ・管理者だけが登録者全員の情報を扱えます。</p></section>
-    <section class="metric-grid">
-      <div class="metric"><span>登録者数</span><strong>${users.length}</strong></div>
-      <div class="metric"><span>累計来店</span><strong>${data.visits.length}</strong></div>
-      <div class="metric"><span>サウンドホラー体験</span><strong>${data.listens.length}</strong></div>
-      <div class="metric"><span>発行クーポン</span><strong>${data.coupons.length}</strong></div>
-    </section>
-    <section class="admin-actions">
-      <button data-link="/admin/users">登録者一覧</button>
-      <button data-link="/admin/points">特別ポイント付与</button>
-      <button data-link="/admin/qr">店舗QRを表示</button>
-      <button data-link="/admin/coupons">クーポン管理</button>
-    </section>
     <section class="list-section analytics-panel">
       <div class="section-head">
         <h2>登録者分析</h2>
@@ -1834,16 +1845,36 @@ async function viewAdminDashboard() {
 
 async function viewAdminUsers() {
   const data = await loadAdminData();
+  const query = (state.adminUserSearch || "").trim().toLowerCase();
+  const users = query ? data.users.filter((user) => adminUserMatches(user, query)) : data.users;
   return layout(html`
     ${adminModeBanner()}
     <section class="page-head"><h1>登録者一覧</h1><p>本名、誕生日、性別、年齢を含むため /admin と RLS で保護します。</p></section>
+    <form class="admin-search" data-form="admin-user-search">
+      <label>登録者検索<input name="query" value="${state.adminUserSearch || ""}" placeholder="名前、誕生日、ユーザーネーム、会員番号、メール" /></label>
+      <button class="primary" type="submit">検索</button>
+    </form>
     <section class="table-wrap">
       <table>
         <thead><tr><th>会員番号</th><th>本名</th><th>ユーザーネーム</th><th>性別</th><th>年齢</th><th>ランクpt</th><th>詳細</th></tr></thead>
-        <tbody>${data.users.map((u) => `<tr><td>${u.member_number}</td><td>${u.real_name}</td><td>${u.username}</td><td>${u.gender}</td><td>${u.age}</td><td>${u.rank_points ?? 0}</td><td><button data-link="/admin/users/${u.id}">開く</button></td></tr>`).join("")}</tbody>
+        <tbody>${users.map((u) => `<tr><td>${u.member_number}</td><td>${u.real_name}</td><td>${u.username}</td><td>${u.gender}</td><td>${u.age}</td><td>${u.rank_points ?? 0}</td><td><button data-link="/admin/users/${u.id}">開く</button></td></tr>`).join("")}</tbody>
       </table>
+      ${users.length ? "" : `<p class="empty">条件に合う登録者はいません。</p>`}
     </section>
   `, true);
+}
+
+function adminUserMatches(user, query) {
+  return [
+    user.member_number,
+    user.real_name,
+    user.username,
+    user.email,
+    user.birthday,
+    monthDayDate(user.birthday),
+    user.gender,
+    String(user.age || "")
+  ].some((value) => String(value || "").toLowerCase().includes(query));
 }
 
 async function viewAdminUserDetail() {
@@ -1893,8 +1924,8 @@ async function viewAdminUserDetail() {
     <section class="list-section"><h2>保有クーポン</h2>
       ${data.coupons.length ? data.coupons.map((item) => `<article class="item coupon-grant-row"><div><strong>${item.coupons?.title || "クーポン"}</strong><span>${item.coupons?.description || ""}</span><small>${couponStatusLabel(item.status)} / ${yenDate(item.issued_at)}</small></div><button type="button" data-action="delete-granted-coupon" data-user-coupon-id="${item.id}">削除</button></article>`).join("") : `<p class="empty">この会員のクーポンはありません。</p>`}
     </section>
-    <section class="list-section"><h2>来店履歴</h2>${data.visits.length ? data.visits.map((visit) => `<article class="item"><strong>${visitLabel(visit.visit_type)} / ${visit.point_value}pt</strong><span>${yenDate(visit.visited_at)}</span></article>`).join("") : `<p class="empty">来店履歴はまだありません。</p>`}</section>
-    <section class="list-section"><h2>ポイント履歴</h2>${data.pointEvents.map((p) => `<article class="item"><strong>${p.point_type} / ${p.point_value}pt</strong><span>${p.memo || ""}</span><small>${yenDate(p.created_at)}</small></article>`).join("")}</section>
+    <section class="list-section history-box"><h2>来店履歴</h2><div class="history-scroll">${data.visits.length ? data.visits.map((visit) => `<article class="item"><strong>${visitLabel(visit.visit_type)} / ${visit.point_value}pt</strong><span>${yenDate(visit.visited_at)}</span></article>`).join("") : `<p class="empty">来店履歴はまだありません。</p>`}</div></section>
+    <section class="list-section history-box"><h2>ポイント履歴</h2><div class="history-scroll">${data.pointEvents.map((p) => `<article class="item"><strong>${p.point_type} / ${p.point_value}pt</strong><span>${p.memo || ""}</span><small>${yenDate(p.created_at)}</small></article>`).join("")}</div></section>
   `, true);
 }
 
@@ -1905,13 +1936,13 @@ async function viewAdminVisits() {
     ${adminModeBanner()}
     <section class="page-head"><h1>来店履歴・ポイント履歴</h1><p>登録者の来店、サウンドホラー体験、特別ポイントを確認する画面です。</p></section>
     <section class="split-lists">
-      <div class="list-section">
+      <div class="list-section history-box">
         <h2>来店履歴</h2>
-        ${data.visits.length ? data.visits.map((visit) => `<article class="item"><strong>${visitLabel(visit.visit_type)} / ${visit.point_value}pt</strong><span>${userById[visit.user_id]?.member_number || visit.user_id || "-"} ${userById[visit.user_id]?.real_name || ""}</span><small>${yenDate(visit.visited_at)}</small></article>`).join("") : `<p class="empty">来店履歴はまだありません。</p>`}
+        <div class="history-scroll">${data.visits.length ? data.visits.map((visit) => `<article class="item"><strong>${visitLabel(visit.visit_type)} / ${visit.point_value}pt</strong><span>${userById[visit.user_id]?.member_number || visit.user_id || "-"} ${userById[visit.user_id]?.real_name || ""}</span><small>${yenDate(visit.visited_at)}</small></article>`).join("") : `<p class="empty">来店履歴はまだありません。</p>`}</div>
       </div>
-      <div class="list-section">
+      <div class="list-section history-box">
         <h2>ポイント履歴</h2>
-        ${data.pointEvents.length ? data.pointEvents.map((point) => `<article class="item"><strong>${pointLabel(point.point_type)} / ${point.point_value}pt</strong><span>${userById[point.user_id]?.member_number || point.user_id || "-"} ${point.memo || ""}</span><small>${yenDate(point.created_at)}</small></article>`).join("") : `<p class="empty">ポイント履歴はまだありません。</p>`}
+        <div class="history-scroll">${data.pointEvents.length ? data.pointEvents.map((point) => `<article class="item"><strong>${pointLabel(point.point_type)} / ${point.point_value}pt</strong><span>${userById[point.user_id]?.member_number || point.user_id || "-"} ${point.memo || ""}</span><small>${yenDate(point.created_at)}</small></article>`).join("") : `<p class="empty">ポイント履歴はまだありません。</p>`}</div>
       </div>
     </section>
   `, true);
@@ -1991,6 +2022,7 @@ function countBy(items, key) {
 async function render() {
   try {
     const path = appPath();
+    if (path.startsWith("/admin")) rememberAdminApp();
     if (path === "/" || path === "/login") paintShell(await viewLogin());
     else if (path === "/admin/login") paintShell(viewAdminLogin());
     else if (path === "/register") paintShell(viewRegister());
@@ -2177,6 +2209,7 @@ document.addEventListener("submit", (event) => {
   if (form === "coupon-grant") grantCoupon(event);
   if (form === "purchase-permission") grantPurchasePermission(event);
   if (form === "news-create") createNewsPost(event);
+  if (form === "admin-user-search") handleAdminUserSearch(event);
 });
 
 window.addEventListener("popstate", render);
