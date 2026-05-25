@@ -1,11 +1,11 @@
 const ranks = [
   { n: 1, name: "迷い人", min: 1, max: 5 },
   { n: 2, name: "常連の気配", min: 5.5, max: 10.5 },
-  { n: 3, name: "蒐集者見習い", min: 11, max: 16.5 },
-  { n: 4, name: "呪物蒐集者", min: 17, max: 23.5 },
-  { n: 5, name: "呪物管理者", min: 24, max: 38.5 },
-  { n: 6, name: "説明会補佐", min: 39, max: 68.5 },
-  { n: 7, name: "蒐集録管理人", min: 69, max: null }
+  { n: 3, name: "好事家", min: 11, max: 16.5 },
+  { n: 4, name: "呪物愛好家", min: 17, max: 23.5 },
+  { n: 5, name: "呪物収集家", min: 24, max: 38.5 },
+  { n: 6, name: "呪物倉庫付き学芸員", min: 39, max: 68.5 },
+  { n: 7, name: "呪物博士", min: 69, max: null }
 ];
 
 const demoSoundHorrors = [
@@ -190,7 +190,8 @@ function demoAdminData() {
       ...demo.pointEvents,
       { id: "demo-special-1", user_id: "demo-user-2", point_type: "special", point_value: 3, rank_affects: true, source_type: "manual", memo: "おまじない体験コース", created_at: new Date().toISOString() }
     ],
-    coupons: []
+    coupons: [],
+    newsPosts: localNewsPosts()
   };
 }
 
@@ -499,6 +500,12 @@ function applyUnreadNewsCount(data) {
 async function loadAdminData(userId = null, options = {}) {
   if (isDemoAdmin()) {
     const data = demoAdminData();
+    if (options.includeNews === true && supabase) {
+      const newsPosts = await optionalQuery(supabase.from("news_posts").select("*").order("published_at", { ascending: false }).limit(100));
+      data.newsPosts = mergeNewsPosts(newsPosts.data || []);
+    } else if (options.includeNews === true) {
+      data.newsPosts = mergeNewsPosts(data.newsPosts || []);
+    }
     return userId ? { ...data, users: data.users.filter((user) => user.id === userId) } : data;
   }
 
@@ -1271,7 +1278,7 @@ async function createNewsPost(event) {
       throw new Error("NEWSのタイトル、本文、画像URL、外部URLのいずれかを入力してください。");
     }
     if (isDemoAdmin()) {
-      saveLocalNewsPost({
+      const post = {
         id: `local-news-${Date.now()}`,
         title,
         body,
@@ -1281,7 +1288,21 @@ async function createNewsPost(event) {
         is_published: true,
         created_at: new Date().toISOString(),
         published_at: new Date().toISOString()
-      });
+      };
+      if (supabase) {
+        const { error } = await supabase.rpc("create_staff_news_post", {
+          p_staff_id: ADMIN_DEMO_ID,
+          p_password: ADMIN_DEMO_PASSWORD,
+          p_title: title,
+          p_body: body || null,
+          p_image_url: imageUrl || null,
+          p_external_url: url || null,
+          p_source_label: sourceLabel(url)
+        });
+        if (error) throw error;
+      } else {
+        saveLocalNewsPost(post);
+      }
       state = { busy: false, message: "NEWSを公開しました。", error: "" };
       render();
       return;
@@ -1495,6 +1516,7 @@ async function viewMemberCard() {
       <button class="compact-action save-action" type="button" data-action="save-card-image" aria-label="会員証を保存">保存</button>
     </section>
     <section class="card-stage">
+      <div class="background-noise" aria-hidden="true"></div>
       <div class="flip-card" data-action="flip-card">
         <article class="member-card face front">
           <img class="card-brand-logo" src="assets/brand/joujou_logo_black.png" alt="" aria-hidden="true" />

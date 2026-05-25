@@ -1,4 +1,4 @@
-const CACHE = "juju-members-v0.2.32";
+const CACHE = "juju-members-v0.2.33";
 const ASSETS = [
   "./",
   "index.html",
@@ -14,6 +14,10 @@ const ASSETS = [
   "assets/backgrounds/member-card-back.jpg",
   "assets/backgrounds/app-bg.jpg",
   "assets/backgrounds/contact-bg.jpg",
+  "assets/overlays/noise-static.jpg",
+  "assets/fonts/HinaMincho-Regular.ttf",
+  "assets/fonts/TaishoKatujiT5.ttf",
+  "assets/fonts/IgyouMincho.ttf",
   "assets/relics/byoudon-mamori.jpg",
   "assets/relics/sange-box.jpg",
   "assets/relics/ganenbutsu.jpg",

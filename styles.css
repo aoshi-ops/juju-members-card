@@ -14,6 +14,24 @@
   --ok: #a6e2b0;
 }
 
+@font-face {
+  font-family: "JujuHinaMincho";
+  src: url("assets/fonts/HinaMincho-Regular.ttf") format("truetype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JujuTaisho";
+  src: url("assets/fonts/TaishoKatujiT5.ttf") format("truetype");
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JujuIgyou";
+  src: url("assets/fonts/IgyouMincho.ttf") format("truetype");
+  font-display: swap;
+}
+
 * { box-sizing: border-box; }
 
 body {
@@ -21,7 +39,7 @@ body {
   min-height: 100vh;
   background: #070605;
   color: var(--ink);
-  font-family: "Yu Gothic UI", "Hiragino Sans", system-ui, sans-serif;
+  font-family: "JujuHinaMincho", "Yu Mincho", "Hiragino Mincho ProN", serif;
   letter-spacing: 0;
   overflow-x: hidden;
   isolation: isolate;
@@ -70,6 +88,10 @@ body:has(.contact-page)::before {
 
 button, input, select, textarea {
   font: inherit;
+}
+
+.topbar, .topbar button, .page-head h1, .auth-panel h1, .settings h1 {
+  font-family: "JujuTaisho", "JujuHinaMincho", serif;
 }
 
 button {
@@ -310,12 +332,60 @@ form {
   display: grid;
   place-items: center;
   perspective: 1400px;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: 8px;
+}
+
+.card-stage::before {
+  content: "";
+  position: absolute;
+  inset: -18px;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    linear-gradient(135deg, rgba(3,3,3,0.55), rgba(7,5,4,0.86)),
+    url("assets/backgrounds/member-card-back.jpg") center / cover no-repeat;
+  filter: blur(4px) saturate(0.74) brightness(0.5);
+  transform: scale(1.02);
+}
+
+.card-stage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 42%, transparent 0 32%, rgba(0,0,0,0.58) 72%),
+    linear-gradient(135deg, rgba(0,0,0,0.42), rgba(0,0,0,0.84));
+}
+
+.card-stage .background-noise {
+  position: absolute;
+  inset: -10px;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: url("assets/overlays/noise-static.jpg") center / cover repeat;
+  mix-blend-mode: screen;
+  filter: blur(0.8px) contrast(1.35) saturate(0.82);
+  animation: cardBackgroundNoise 300s steps(1, end) infinite;
+}
+
+@keyframes cardBackgroundNoise {
+  0%, 98.35%, 99.85%, 100% { opacity: 0; transform: translate3d(0,0,0) scale(1.015); }
+  98.45% { opacity: 0.26; transform: translate3d(-1.1%, 0.8%, 0) scale(1.03); }
+  98.75% { opacity: 0.12; transform: translate3d(1.4%, -0.6%, 0) scale(1.02); }
+  99.05% { opacity: 0.3; transform: translate3d(-0.5%, -1%, 0) scale(1.028); }
+  99.35% { opacity: 0.08; transform: translate3d(0.9%, 0.4%, 0) scale(1.018); }
 }
 
 .flip-card {
   width: min(94vw, 980px);
   aspect-ratio: 1.74 / 1;
   position: relative;
+  z-index: 1;
   transform-style: preserve-3d;
   transition: transform 520ms ease;
 }
@@ -357,20 +427,6 @@ form {
     radial-gradient(circle at 50% 20%, rgba(255, 237, 185, 0.08), transparent 28%),
     repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.026) 0 1px, transparent 1px 14px),
     linear-gradient(145deg, #15120e, #050505 62%, #120d08);
-}
-
-.back::after {
-  content: "";
-  position: absolute;
-  inset: -12px;
-  z-index: 0;
-  pointer-events: none;
-  background:
-    linear-gradient(135deg, rgba(5,5,5,0.52), rgba(8,6,4,0.76)),
-    url("assets/backgrounds/member-card-back.jpg") center / cover no-repeat;
-  filter: blur(5px) saturate(0.78) brightness(0.66);
-  opacity: 0.3;
-  transform: scale(1.02);
 }
 
 .member-card::before {
@@ -514,7 +570,7 @@ form {
   place-items: center;
   color: rgba(225, 199, 131, 0.72);
   font-size: 32px;
-  font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+  font-family: "JujuIgyou", "Yu Mincho", "Hiragino Mincho ProN", serif;
 }
 
 .favorite-relic-badge strong {
@@ -526,7 +582,7 @@ form {
   text-overflow: ellipsis;
   white-space: normal;
   color: var(--gold-2);
-  font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+  font-family: "JujuIgyou", "Yu Mincho", "Hiragino Mincho ProN", serif;
   font-size: clamp(11px, 1.35vw, 15px);
   font-weight: 800;
   line-height: 1.12;
@@ -548,11 +604,13 @@ form {
 .rank-badge span {
   color: var(--muted);
   font-size: 12px;
+  font-family: "JujuIgyou", "JujuHinaMincho", serif;
 }
 
 .rank-badge strong {
   color: var(--gold-2);
   font-size: clamp(16px, 2vw, 24px);
+  font-family: "JujuIgyou", "JujuHinaMincho", serif;
 }
 
 .purchase-seal {
@@ -577,10 +635,11 @@ form {
   font-size: 10px;
   font-weight: 800;
   line-height: 1.1;
+  font-family: "JujuIgyou", "JujuHinaMincho", serif;
 }
 
 .purchase-seal strong {
-  font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+  font-family: "JujuIgyou", "Yu Mincho", "Hiragino Mincho ProN", serif;
   font-size: clamp(38px, 7vw, 58px);
   line-height: 0.9;
 }
@@ -599,6 +658,7 @@ form {
 }
 
 .seal-mark {
+  font-family: "JujuIgyou", "JujuHinaMincho", serif;
   width: 96px;
   aspect-ratio: 1;
   margin: 0 auto 16px;
@@ -709,7 +769,7 @@ form {
 }
 
 .horror-title {
-  font-family: "Yu Mincho", "Hiragino Mincho ProN", "Yu Gothic UI", serif;
+  font-family: "JujuTaisho", "Yu Mincho", "Hiragino Mincho ProN", serif;
   font-weight: 700;
   letter-spacing: 0.04em;
   line-height: 1.35;
@@ -731,51 +791,6 @@ form {
 
 .member-actions .save-action {
   min-width: 58px;
-}
-
-.user-main:has(.card-stage)::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 40;
-  pointer-events: none;
-  opacity: 0.11;
-  background:
-    repeating-linear-gradient(90deg, transparent 0 86px, rgba(255,255,255,0.08) 87px, transparent 88px 160px),
-    radial-gradient(circle at 20% 30%, rgba(255,255,255,0.16), transparent 1px),
-    radial-gradient(circle at 80% 60%, rgba(0,0,0,0.4), transparent 2px),
-    radial-gradient(circle at 42% 72%, rgba(255,255,255,0.18), transparent 1px);
-  background-size: 100% 100%, 90px 90px, 130px 130px, 54px 54px;
-  mix-blend-mode: soft-light;
-  animation: filmGrain 1.8s steps(2, end) infinite;
-}
-
-.user-main:has(.card-stage)::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 41;
-  pointer-events: none;
-  opacity: 0;
-  background:
-    repeating-linear-gradient(90deg, transparent 0 118px, rgba(255,255,255,0.34) 119px, transparent 121px 220px),
-    linear-gradient(112deg, transparent 0 44%, rgba(255,245,210,0.72) 44.18% 44.48%, transparent 44.82%),
-    linear-gradient(74deg, transparent 0 62%, rgba(255,255,255,0.42) 62.08% 62.24%, transparent 62.58%),
-    linear-gradient(139deg, transparent 0 31%, rgba(0,0,0,0.9) 31.12% 31.36%, transparent 31.7%);
-  mix-blend-mode: screen;
-  animation: crackleFlash 5.4s steps(1, end) infinite;
-}
-
-@keyframes filmGrain {
-  0% { transform: translate3d(0,0,0); filter: contrast(1.1); }
-  50% { transform: translate3d(-0.4%, 0.3%, 0); filter: contrast(1.2); }
-  100% { transform: translate3d(0.3%, -0.4%, 0); filter: contrast(1.05); }
-}
-
-@keyframes crackleFlash {
-  0%, 79%, 81%, 88%, 90%, 100% { opacity: 0; transform: translate3d(0,0,0) scale(1); }
-  80% { opacity: 0.34; transform: translate3d(-0.6%, 0.4%, 0) scale(1.01); }
-  89% { opacity: 0.22; transform: translate3d(0.5%, -0.2%, 0) scale(1.005); }
 }
 
 .coupon-wallet {

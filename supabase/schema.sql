@@ -201,6 +201,55 @@ create table if not exists public.news_reads (
   unique (user_id, news_post_id)
 );
 
+create or replace function public.create_staff_news_post(
+  p_staff_id text,
+  p_password text,
+  p_title text,
+  p_body text default null,
+  p_image_url text default null,
+  p_external_url text default null,
+  p_source_label text default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  new_id uuid;
+begin
+  if p_staff_id <> 'joujoustaff' or p_password <> 'joujoufirstanniversary' then
+    raise exception 'staff credential is invalid';
+  end if;
+
+  if coalesce(trim(p_title), '') = '' then
+    raise exception 'NEWS title is required';
+  end if;
+
+  insert into public.news_posts (
+    title,
+    body,
+    image_url,
+    external_url,
+    source_label,
+    is_published,
+    published_at
+  )
+  values (
+    trim(p_title),
+    nullif(trim(coalesce(p_body, '')), ''),
+    nullif(trim(coalesce(p_image_url, '')), ''),
+    nullif(trim(coalesce(p_external_url, '')), ''),
+    nullif(trim(coalesce(p_source_label, '')), ''),
+    true,
+    now()
+  )
+  returning id into new_id;
+
+  return new_id;
+end;
+$$;
+
 grant usage on schema public to authenticated;
 grant usage on sequence public.member_number_seq to authenticated;
 grant select, insert, update, delete on
@@ -221,6 +270,8 @@ grant select, insert, update, delete on
   public.news_posts,
   public.news_reads
 to authenticated;
+
+grant execute on function public.create_staff_news_post(text, text, text, text, text, text, text) to anon, authenticated;
 
 create or replace function public.is_staff()
 returns boolean
@@ -874,11 +925,11 @@ insert into public.member_ranks (rank_number, rank_name, min_point, max_point)
 values
   (1, '迷い人', 1, 5),
   (2, '常連の気配', 5.5, 10.5),
-  (3, '蒐集者見習い', 11, 16.5),
-  (4, '呪物蒐集者', 17, 23.5),
-  (5, '呪物管理者', 24, 38.5),
-  (6, '説明会補佐', 39, 68.5),
-  (7, '蒐集録管理人', 69, null)
+  (3, '好事家', 11, 16.5),
+  (4, '呪物愛好家', 17, 23.5),
+  (5, '呪物収集家', 24, 38.5),
+  (6, '呪物倉庫付き学芸員', 39, 68.5),
+  (7, '呪物博士', 69, null)
 on conflict (rank_number) do update
 set rank_name = excluded.rank_name,
     min_point = excluded.min_point,
