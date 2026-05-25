@@ -26,12 +26,6 @@
   font-display: swap;
 }
 
-@font-face {
-  font-family: "JujuIgyou";
-  src: url("assets/fonts/IgyouMincho.ttf") format("truetype");
-  font-display: swap;
-}
-
 * { box-sizing: border-box; }
 
 body {
@@ -199,6 +193,21 @@ nav button {
 .topbar, .user-main, .admin-main, .auth-page {
   position: relative;
   z-index: 1;
+}
+
+.admin-main,
+.admin-main button,
+.admin-main input,
+.admin-main select,
+.admin-main textarea,
+.admin-main table,
+.admin-main .page-head h1,
+.admin-main h1,
+.admin-main h2,
+.auth-page:has([data-form="admin-login"]),
+.auth-page:has([data-form="admin-login"]) button,
+.auth-page:has([data-form="admin-login"]) input {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", sans-serif;
 }
 
 .user-main, .admin-main {
@@ -417,7 +426,7 @@ form {
   background:
     linear-gradient(135deg, rgba(22, 14, 6, 0.22), rgba(12, 8, 4, 0.54)),
     radial-gradient(circle at 16% 12%, rgba(255, 237, 185, 0.1), transparent 30%),
-    url("assets/card/card-front.jpg") center / cover no-repeat;
+    url("assets/card/card-front-fit.jpg") center / 100% 100% no-repeat;
 }
 
 .back {
@@ -425,7 +434,7 @@ form {
   background:
     linear-gradient(145deg, rgba(8, 5, 3, 0.32), rgba(5, 4, 3, 0.62)),
     radial-gradient(circle at 50% 20%, rgba(255, 237, 185, 0.08), transparent 28%),
-    url("assets/card/card-back.jpg") center / cover no-repeat;
+    url("assets/card/card-back-fit.jpg") center / 100% 100% no-repeat;
 }
 
 .member-card::before {
@@ -532,7 +541,7 @@ form {
   inset: -4%;
   z-index: 2;
   pointer-events: none;
-  background: url("assets/card/avatar-frame.png") center / contain no-repeat;
+  background: url("assets/card/avatar-frame-fit.png") center / 100% 100% no-repeat;
 }
 
 .avatar input {
@@ -584,7 +593,7 @@ form {
   inset: -3%;
   z-index: 3;
   pointer-events: none;
-  background: url("assets/card/relic-frame.png") center / contain no-repeat;
+  background: url("assets/card/relic-frame-fit.png") center / 100% 100% no-repeat;
 }
 
 .favorite-relic-badge::after {
@@ -627,22 +636,6 @@ form {
   text-align: center;
 }
 
-.relic-curse {
-  position: absolute;
-  inset: 18% 18% 28%;
-  z-index: 2;
-  display: grid;
-  place-items: center;
-  color: rgba(225, 199, 131, 0.18);
-  font-family: "JujuIgyou", "JujuTaisho", serif;
-  font-size: clamp(24px, 4vw, 42px);
-  font-weight: 800;
-  line-height: 1;
-  transform: rotate(-8deg);
-  pointer-events: none;
-  text-shadow: 0 0 12px rgba(0, 0, 0, 0.88);
-}
-
 .rank-badge {
   display: flex;
   align-items: center;
@@ -656,24 +649,6 @@ form {
   background: linear-gradient(90deg, rgba(198, 168, 93, 0.2), rgba(198, 168, 93, 0.06));
   min-width: 0;
   position: relative;
-  overflow: hidden;
-}
-
-.rank-curse {
-  position: absolute;
-  right: 16px;
-  top: 50%;
-  max-width: 64%;
-  overflow: hidden;
-  color: rgba(225, 199, 131, 0.15);
-  font-family: "JujuIgyou", "JujuTaisho", serif;
-  font-size: clamp(22px, 3.8vw, 40px);
-  font-style: normal;
-  font-weight: 800;
-  line-height: 1;
-  white-space: nowrap;
-  transform: translateY(-50%) rotate(-4deg);
-  pointer-events: none;
 }
 
 .rank-badge span {
@@ -716,20 +691,6 @@ form {
   box-shadow: inset 0 0 0 4px rgba(190, 43, 43, 0.16), 0 0 22px rgba(190, 43, 43, 0.12);
   z-index: 3;
   overflow: hidden;
-}
-
-.purchase-seal::before {
-  content: "呪";
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  color: rgba(215, 73, 73, 0.18);
-  font-family: "JujuIgyou", "JujuTaisho", serif;
-  font-size: clamp(58px, 10vw, 92px);
-  line-height: 1;
-  transform: rotate(18deg);
-  pointer-events: none;
 }
 
 .purchase-seal span {
@@ -780,18 +741,6 @@ form {
   overflow: hidden;
 }
 
-.seal-mark::before {
-  content: "呪";
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  color: rgba(215, 73, 73, 0.2);
-  font-family: "JujuIgyou", "JujuTaisho", serif;
-  font-size: 82px;
-  transform: rotate(15deg);
-  pointer-events: none;
-}
 
 .point-strip {
   display: flex;
@@ -866,7 +815,7 @@ form {
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  background: url("assets/card/sound-frame.png") center / 100% 100% no-repeat;
+  background: url("assets/card/sound-frame-fit.png") center / 100% 100% no-repeat;
   opacity: 0.95;
 }
 
@@ -1264,7 +1213,9 @@ form {
 
 .news-link-preview {
   display: grid;
-  gap: 5px;
+  grid-template-columns: 44px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
   padding: 12px 14px;
   border: 1px solid rgba(225, 199, 131, 0.24);
   border-radius: 7px;
@@ -1273,6 +1224,21 @@ form {
   background:
     linear-gradient(135deg, rgba(225,199,131,0.11), rgba(0,0,0,0.18)),
     rgba(0,0,0,0.2);
+}
+
+.preview-icon {
+  width: 44px;
+  aspect-ratio: 1;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(225, 199, 131, 0.18);
+}
+
+.preview-icon img {
+  width: 24px;
+  height: 24px;
 }
 
 .news-link-preview span {
@@ -1292,8 +1258,37 @@ form {
   line-height: 1.4;
 }
 
-.news-post > button {
-  margin: 0 16px 16px;
+.news-link-preview em {
+  color: var(--gold-2);
+  font-size: 12px;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.news-admin-actions {
+  display: grid;
+  gap: 10px;
+  padding: 0 16px 16px;
+}
+
+.news-admin-actions details {
+  border: 1px solid rgba(225, 199, 131, 0.18);
+  border-radius: 7px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.news-admin-actions summary {
+  cursor: pointer;
+  color: var(--gold-2);
+  font-weight: 700;
+}
+
+.news-edit-form {
+  margin-top: 10px;
+}
+
+.news-admin-actions > button {
   justify-self: start;
 }
 

@@ -1,4 +1,4 @@
-const CACHE = "juju-members-v0.2.36";
+const CACHE = "juju-members-v0.2.37";
 const ASSETS = [
   "./",
   "index.html",
@@ -16,16 +16,20 @@ const ASSETS = [
   "assets/backgrounds/contact-bg.jpg",
   "assets/overlays/noise-static.jpg",
   "assets/card/avatar-frame.jpg",
+  "assets/card/avatar-frame-fit.png",
   "assets/card/avatar-frame.png",
   "assets/card/card-back.jpg",
+  "assets/card/card-back-fit.jpg",
   "assets/card/card-front.jpg",
+  "assets/card/card-front-fit.jpg",
   "assets/card/relic-frame.jpg",
+  "assets/card/relic-frame-fit.png",
   "assets/card/relic-frame.png",
   "assets/card/sound-frame.jpg",
+  "assets/card/sound-frame-fit.png",
   "assets/card/sound-frame.png",
   "assets/fonts/HinaMincho-Regular.ttf",
   "assets/fonts/TaishoKatujiT5.ttf",
-  "assets/fonts/IgyouMincho.ttf",
   "assets/relics/byoudon-mamori.jpg",
   "assets/relics/sange-box.jpg",
   "assets/relics/ganenbutsu.jpg",

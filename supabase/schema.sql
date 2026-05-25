@@ -250,6 +250,63 @@ begin
 end;
 $$;
 
+create or replace function public.update_staff_news_post(
+  p_staff_id text,
+  p_password text,
+  p_news_id uuid,
+  p_title text,
+  p_body text default null,
+  p_image_url text default null,
+  p_external_url text default null,
+  p_source_label text default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_staff_id <> 'joujoustaff' or p_password <> 'joujoufirstanniversary' then
+    raise exception 'staff credential is invalid';
+  end if;
+
+  if coalesce(trim(p_title), '') = '' then
+    raise exception 'NEWS title is required';
+  end if;
+
+  update public.news_posts
+  set
+    title = trim(p_title),
+    body = nullif(trim(coalesce(p_body, '')), ''),
+    image_url = nullif(trim(coalesce(p_image_url, '')), ''),
+    external_url = nullif(trim(coalesce(p_external_url, '')), ''),
+    source_label = nullif(trim(coalesce(p_source_label, '')), ''),
+    updated_at = now()
+  where id = p_news_id;
+end;
+$$;
+
+create or replace function public.delete_staff_news_post(
+  p_staff_id text,
+  p_password text,
+  p_news_id uuid
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_staff_id <> 'joujoustaff' or p_password <> 'joujoufirstanniversary' then
+    raise exception 'staff credential is invalid';
+  end if;
+
+  update public.news_posts
+  set is_published = false, updated_at = now()
+  where id = p_news_id;
+end;
+$$;
+
 grant usage on schema public to anon, authenticated;
 grant usage on sequence public.member_number_seq to authenticated;
 grant select, insert, update, delete on
@@ -273,6 +330,8 @@ to authenticated;
 
 grant select, insert on public.news_posts to anon;
 grant execute on function public.create_staff_news_post(text, text, text, text, text, text, text) to anon, authenticated;
+grant execute on function public.update_staff_news_post(text, text, uuid, text, text, text, text, text) to anon, authenticated;
+grant execute on function public.delete_staff_news_post(text, text, uuid) to anon, authenticated;
 
 create or replace function public.is_staff()
 returns boolean

@@ -138,6 +138,15 @@ function calculateAgeFromBirthday(value) {
   return Math.max(0, Math.min(120, age));
 }
 const html = (strings, ...values) => strings.map((s, i) => s + (values[i] ?? "")).join("");
+
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
 const appPath = () => {
   const path = location.pathname;
   const normalize = (value) => (value.length > 1 ? value.replace(/\/$/, "") : value);
@@ -450,7 +459,7 @@ async function signOut() {
 
 function exitDemoAdmin() {
   localStorage.removeItem(ADMIN_DEMO_STORAGE);
-  state = { busy: false, message: "デモ管理モードを終了しました。実データを見るには staff/admin のSupabaseログインを使ってください。", error: "" };
+  state = { busy: false, message: "初期確認用の管理モードを終了しました。実データを見るには admin 権限のSupabaseログインを使ってください。", error: "" };
   navigate("/admin/login");
 }
 
@@ -521,7 +530,7 @@ async function loadAdminData(userId = null, options = {}) {
   }
 
   if (!supabase) {
-    throw new Error("管理画面を確認するには、デモ用スタッフログインを行うか Supabase に接続してください。");
+    throw new Error("管理画面を確認するには、管理ログインを行うか Supabase に接続してください。");
   }
 
   if (!supabase) {
@@ -538,14 +547,14 @@ async function loadAdminData(userId = null, options = {}) {
   }
 
   const current = await currentSession();
-  if (!current) throw new Error("スタッフログインが必要です。");
+  if (!current) throw new Error("管理ログインが必要です。");
   const { data: profile, error: profileError } = await supabase
     .from("app_profiles")
     .select("role")
     .eq("auth_user_id", current.user.id)
     .single();
   if (profileError) throw profileError;
-  if (!["staff", "admin"].includes(profile?.role)) throw new Error("スタッフ権限がありません。");
+  if (profile?.role !== "admin") throw new Error("admin権限がありません。");
 
   const usersQuery = supabase.from("admin_user_summaries").select("*").order("created_at", { ascending: false });
   const includeNews = options.includeNews === true;
@@ -606,19 +615,45 @@ async function handleAdminLogin(event) {
   const formElement = event?.currentTarget?.matches?.("form")
     ? event.currentTarget
     : document.querySelector('[data-form="admin-login"]');
+  if (!formElement.reportValidity()) return;
   const form = new FormData(formElement);
-  const staffId = String(form.get("staff_id") || "").trim();
+  const loginId = String(form.get("login_id") || "").trim();
   const password = String(form.get("password") || "").trim();
 
-  if (staffId === ADMIN_DEMO_ID && password === ADMIN_DEMO_PASSWORD) {
+  if (loginId === ADMIN_DEMO_ID && password === ADMIN_DEMO_PASSWORD) {
     localStorage.setItem(ADMIN_DEMO_STORAGE, "true");
-    state = { busy: false, message: "デモ用スタッフログインで管理画面を開きました。実データは Supabase の staff/admin 権限で確認します。", error: "" };
+    state = { busy: false, message: "初期確認用の管理者ログインで管理画面を開きました。", error: "" };
     location.assign(publicUrl("/admin/dashboard"));
     return;
   }
 
-  state = { busy: false, message: "", error: "デモ用スタッフIDまたはパスワードが違います。" };
-  render();
+  try {
+    if (!supabase) throw new Error("Supabase接続が必要です。");
+    state = { busy: true, message: "", error: "" };
+    render();
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: loginId,
+      password
+    });
+    if (error) throw error;
+    const { data: profile, error: profileError } = await supabase
+      .from("app_profiles")
+      .select("role")
+      .eq("auth_user_id", data.user.id)
+      .single();
+    if (profileError) throw profileError;
+    if (profile?.role !== "admin") {
+      await supabase.auth.signOut();
+      session = null;
+      throw new Error("admin権限がありません。");
+    }
+    localStorage.removeItem(ADMIN_DEMO_STORAGE);
+    state = { busy: false, message: "管理者ログインしました。", error: "" };
+    location.assign(publicUrl("/admin/dashboard"));
+  } catch (error) {
+    state = { busy: false, message: "", error: appErrorMessage(error) };
+    render();
+  }
 }
 
 async function handleRegister(event) {
@@ -1100,7 +1135,7 @@ async function grantSpecialPoint(event) {
   const form = new FormData(event.currentTarget);
   try {
     if (isDemoAdmin()) {
-      state = { busy: false, message: `デモ用に ${form.get("point_name")} / ${form.get("point_value")}pt を付与した想定で確認しました。実保存は Supabase staff/admin 権限で行います。`, error: "" };
+      state = { busy: false, message: `デモ用に ${form.get("point_name")} / ${form.get("point_value")}pt を付与した想定で確認しました。実保存は Supabase admin 権限で行います。`, error: "" };
       render();
       return;
     }
@@ -1126,7 +1161,7 @@ async function createCoupon(event) {
   const form = new FormData(event.currentTarget);
   try {
     if (isDemoAdmin()) {
-      state = { busy: false, message: "デモ管理では作成UIだけ確認できます。実保存はSupabase staff/admin権限で行います。", error: "" };
+      state = { busy: false, message: "デモ管理では作成UIだけ確認できます。実保存はSupabase admin権限で行います。", error: "" };
       render();
       return;
     }
@@ -1260,6 +1295,33 @@ function sourceLabel(url) {
   }
 }
 
+function linkPreview(post) {
+  if (!post.external_url) return "";
+  let url;
+  try {
+    url = new URL(post.external_url);
+  } catch {
+    return "";
+  }
+  const host = url.hostname.replace(/^www\./, "");
+  const label = post.source_label || sourceLabel(post.external_url);
+  const favicon = `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host)}&sz=64`;
+  const path = `${url.pathname}${url.search}`.replace(/\/$/, "") || "/";
+  const providerClass = label.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const previewTitle = post.title || label || host;
+  return html`
+    <div class="news-link-preview provider-${escapeHtml(providerClass)}">
+      <div class="preview-icon"><img src="${escapeHtml(favicon)}" alt="" loading="lazy" /></div>
+      <div>
+        <span>${escapeHtml(label)}</span>
+        <strong>${escapeHtml(previewTitle)}</strong>
+        <small>${escapeHtml(host + path)}</small>
+      </div>
+      <em>リンクを開く</em>
+    </div>
+  `;
+}
+
 function normalizeExternalUrl(value) {
   const raw = String(value || "").trim();
   if (!raw) return "";
@@ -1361,23 +1423,84 @@ function handleAdminUserSearch(event) {
   render();
 }
 
-async function deleteNewsPost(newsId) {
+async function deleteNewsPost(newsId, externalUrl = "") {
   try {
+    const removeLocal = () => {
+      localStorage.setItem(NEWS_LOCAL_STORAGE, JSON.stringify(localNewsPosts().filter((post) =>
+        post.id !== newsId && (!externalUrl || post.external_url !== externalUrl)
+      )));
+    };
     if (String(newsId).startsWith("local-news-")) {
-      localStorage.setItem(NEWS_LOCAL_STORAGE, JSON.stringify(localNewsPosts().filter((post) => post.id !== newsId)));
+      removeLocal();
       state = { busy: false, message: "NEWSを削除しました。", error: "" };
       render();
       return;
     }
-    if (isDemoAdmin()) {
-      state = { busy: false, message: "デモ管理ではNEWS削除の操作確認だけ行いました。", error: "" };
+    if (isDemoAdmin() && supabase) {
+      const { error } = await supabase.rpc("delete_staff_news_post", {
+        p_staff_id: ADMIN_DEMO_ID,
+        p_password: ADMIN_DEMO_PASSWORD,
+        p_news_id: newsId
+      });
+      if (error) throw error;
+      removeLocal();
+      state = { busy: false, message: "NEWSを削除しました。", error: "" };
       render();
       return;
     }
     if (!supabase) throw new Error("Supabase接続が必要です。");
     const { error } = await supabase.from("news_posts").update({ is_published: false }).eq("id", newsId);
     if (error) throw error;
+    removeLocal();
     state = { busy: false, message: "NEWSを非公開にしました。", error: "" };
+  } catch (error) {
+    state = { busy: false, message: "", error: appErrorMessage(error) };
+  }
+  render();
+}
+
+async function updateNewsPost(event) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  const newsId = String(form.get("news_id") || "");
+  const title = String(form.get("title") || "").trim();
+  const body = String(form.get("body") || "").trim();
+  const imageUrl = String(form.get("image_url") || "").trim();
+  const url = normalizeExternalUrl(form.get("url"));
+  const patch = {
+    title,
+    body: body || null,
+    image_url: imageUrl || null,
+    external_url: url || null,
+    source_label: sourceLabel(url),
+    updated_at: new Date().toISOString()
+  };
+  try {
+    if (!title) throw new Error("タイトルを入力してください。");
+    const localPosts = localNewsPosts();
+    const localIndex = localPosts.findIndex((post) => post.id === newsId);
+    if (localIndex >= 0) {
+      localPosts[localIndex] = { ...localPosts[localIndex], ...patch };
+      localStorage.setItem(NEWS_LOCAL_STORAGE, JSON.stringify(localPosts));
+    }
+    if (isDemoAdmin() && supabase && !String(newsId).startsWith("local-news-")) {
+      const { error } = await supabase.rpc("update_staff_news_post", {
+        p_staff_id: ADMIN_DEMO_ID,
+        p_password: ADMIN_DEMO_PASSWORD,
+        p_news_id: newsId,
+        p_title: title,
+        p_body: body || null,
+        p_image_url: imageUrl || null,
+        p_external_url: url || null,
+        p_source_label: sourceLabel(url)
+      });
+      if (error) throw error;
+    } else if (!String(newsId).startsWith("local-news-")) {
+      if (!supabase) throw new Error("Supabase接続が必要です。");
+      const { error } = await supabase.from("news_posts").update(patch).eq("id", newsId);
+      if (error) throw error;
+    }
+    state = { busy: false, message: "NEWSを更新しました。", error: "" };
   } catch (error) {
     state = { busy: false, message: "", error: appErrorMessage(error) };
   }
@@ -1441,25 +1564,17 @@ function viewAdminLogin() {
   return html`
     <main class="auth-page">
       <section class="auth-panel">
-        <h1>スタッフ管理ログイン</h1>
-        <p>スタッフ権限のあるアカウントで管理画面を開きます。</p>
+        <h1>管理ログイン</h1>
+        <p>admin権限のあるアカウントだけが管理画面を開けます。</p>
         ${notice()}
         <form data-form="admin-login">
-          <label>スタッフID<input name="staff_id" required autocomplete="username" /></label>
+          <label>管理ID / メールアドレス<input name="login_id" required autocomplete="username" /></label>
           <label>パスワード<input name="password" type="password" required autocomplete="current-password" /></label>
           <button class="primary" type="button" data-action="admin-login">管理画面を開く</button>
         </form>
         <div class="auth-links">
           <button data-link="/login">ユーザーログイン</button>
         </div>
-        <hr class="soft-divider" />
-        <h2>実データ用 staff/admin ログイン</h2>
-        <p>登録者一覧などの実データは、Supabase Auth のアカウントを staff/admin にしたうえでログインすると表示されます。</p>
-        <form data-form="login">
-          <label>メールアドレス<input name="email" type="email" required autocomplete="email" /></label>
-          <label>パスワード<input name="password" type="password" required autocomplete="current-password" /></label>
-          <button class="primary" type="button" data-action="login-user">実データ管理画面へ</button>
-        </form>
       </section>
     </main>
   `;
@@ -1557,12 +1672,11 @@ async function viewMemberCard() {
               </label>
               <button type="button" class="favorite-relic-badge ${favoriteImage ? "has-image" : ""}" data-action="open-relic-picker" data-relic-label="${favoriteLabel}" data-no-flip>
                 ${favoriteImage ? `<img src="${favoriteImage}" alt="${favoriteLabel}" />` : `<span class="relic-placeholder">?</span>`}
-                <span class="relic-curse" aria-hidden="true">${favoriteLabel.slice(0, 2)}</span>
                 <strong>${favoriteLabel}</strong>
               </button>
             </div>
           </div>
-          <div class="rank-badge" data-rank-label="${rank.name}"><span>称号 ${rank.n}</span><i class="rank-curse" aria-hidden="true">${rank.name}</i><strong>${rank.name}</strong></div>
+          <div class="rank-badge" data-rank-label="${rank.name}"><span>称号 ${rank.n}</span><strong>${rank.name}</strong></div>
           ${purchasePermission.allowed ? `<button type="button" class="purchase-seal ${purchasePermission.manual ? "manual" : ""}" data-action="open-purchase-seal" data-no-flip><span>呪物購入資格</span><strong>許</strong></button>` : ""}
           <div class="point-strip">
             <span>現在ポイント</span>
@@ -1740,7 +1854,7 @@ function viewSettings() {
       ${notice()}
       <div class="setup-guide">
         <h2>公開状態</h2>
-        <p>フロントには公開可能なSupabase URLとpublishable keyのみを同梱しています。実データの保護はSupabase RLSとstaff/admin権限で行います。</p>
+        <p>フロントには公開可能なSupabase URLとpublishable keyのみを同梱しています。実データの保護はSupabase RLSとadmin権限で行います。</p>
       </div>
     </section>
   `);
@@ -1782,24 +1896,40 @@ async function markNewsRead(userId, posts = []) {
 
 function newsPostCard(post, admin = false) {
   const date = post.published_at ? yenDate(post.published_at) : yenDate(post.created_at);
-  const media = post.image_url ? `<img class="news-image" src="${post.image_url}" alt="${post.title}" />` : "";
-  const body = post.body ? `<p>${post.body}</p>` : "";
-  const source = post.source_label || sourceLabel(post.external_url || "");
-  const host = post.external_url ? sourceLabel(post.external_url) : "";
-  const preview = post.external_url
-    ? `<div class="news-link-preview"><span>${host}</span><strong>${post.title}</strong><small>${post.external_url}</small></div>`
-    : "";
+  const title = post.title || "NEWS";
+  const imageUrl = post.image_url || "";
+  const externalUrl = post.external_url || "";
+  const bodyText = post.body || "";
+  const media = imageUrl ? `<img class="news-image" src="${escapeHtml(imageUrl)}" alt="${escapeHtml(title)}" />` : "";
+  const body = bodyText ? `<p>${escapeHtml(bodyText)}</p>` : "";
+  const source = post.source_label || sourceLabel(externalUrl);
+  const preview = linkPreview(post);
   const content = [
-    `<div class="news-author"><span class="news-avatar">呪</span><div><strong>cafeジュジュ</strong><small>${source} / ${date}</small></div></div>`,
-    `<h2>${post.title}</h2>`,
+    `<div class="news-author"><span class="news-avatar">呪</span><div><strong>cafeジュジュ</strong><small>${escapeHtml(source)} / ${escapeHtml(date)}</small></div></div>`,
+    `<h2>${escapeHtml(title)}</h2>`,
     body,
     media,
     preview
   ].join("");
   return html`
-    <article class="news-post ${post.external_url ? "is-link" : ""}">
-      ${post.external_url ? `<a href="${post.external_url}" target="_blank" rel="noopener noreferrer">${content}</a>` : content}
-      ${admin ? `<button type="button" data-action="delete-news" data-news-id="${post.id}">非公開</button>` : ""}
+    <article class="news-post ${externalUrl ? "is-link" : ""}">
+      ${externalUrl ? `<a href="${escapeHtml(externalUrl)}" target="_blank" rel="noopener noreferrer">${content}</a>` : content}
+      ${admin ? `
+        <div class="news-admin-actions">
+          <details>
+            <summary>編集</summary>
+            <form class="grid-form admin-form news-edit-form" data-form="news-edit">
+              <input type="hidden" name="news_id" value="${escapeHtml(post.id)}" />
+              <label>タイトル<input name="title" value="${escapeHtml(title)}" required /></label>
+              <label>本文<textarea name="body" rows="3">${escapeHtml(bodyText)}</textarea></label>
+              <label>画像URL<input name="image_url" value="${escapeHtml(imageUrl)}" /></label>
+              <label>SNS/外部URL<input name="url" value="${escapeHtml(externalUrl)}" /></label>
+              <button class="primary" type="submit">更新</button>
+            </form>
+          </details>
+          <button type="button" data-action="delete-news" data-news-id="${escapeHtml(post.id)}" data-news-url="${escapeHtml(externalUrl)}">削除</button>
+        </div>
+      ` : ""}
     </article>
   `;
 }
@@ -1850,7 +1980,7 @@ async function viewAdminNews() {
 
 function adminModeBanner() {
   return isDemoAdmin()
-    ? `<div class="setup-warning"><strong>デモ管理モードです</strong><p>表示中の登録者は確認用データです。実際に登録したユーザーを見るには、Supabase Authでログインしたアカウントの app_profiles.role を staff/admin にしてください。</p><button type="button" data-action="exit-demo-admin">デモを終了して実データログインへ</button></div>`
+    ? `<div class="setup-warning"><strong>初期確認用の管理モードです</strong><p>実際に登録したユーザーを見るには、Supabase Authでログインしたアカウントの app_profiles.role を admin にしてください。</p><button type="button" data-action="exit-demo-admin">確認モードを終了して実データログインへ</button></div>`
     : "";
 }
 
@@ -1976,7 +2106,7 @@ async function viewAdminDashboard() {
   const segments = adminAnalyticsSegments(data, mode);
   return layout(html`
     ${adminModeBanner()}
-    <section class="page-head"><h1>スタッフ管理</h1><p>スタッフ・管理者だけが登録者全員の情報を扱えます。</p></section>
+    <section class="page-head"><h1>管理</h1><p>admin権限だけが登録者全員の情報を扱えます。</p></section>
     <section class="list-section analytics-panel">
       <div class="section-head">
         <h2>登録者分析</h2>
@@ -2121,7 +2251,7 @@ async function viewAdminPoints() {
   const data = await loadAdminData();
   return layout(html`
     ${adminModeBanner()}
-    <section class="page-head"><h1>特別ポイント付与</h1><p>スタッフ権限を持つアカウントだけが実行できます。</p></section>
+    <section class="page-head"><h1>特別ポイント付与</h1><p>admin権限を持つアカウントだけが実行できます。</p></section>
     <form class="grid-form admin-form" data-form="special-point">
       <label>対象ユーザー<select name="user_id" required>${data.users.map((u) => `<option value="${u.id}">${u.member_number} / ${u.real_name}</option>`).join("")}</select></label>
       <label>ポイント名<input name="point_name" required placeholder="おまじない体験コース" /></label>
@@ -2282,7 +2412,7 @@ document.addEventListener("click", (event) => {
   if (action.dataset.action === "delete-granted-coupon") deleteGrantedCoupon(action.dataset.userCouponId);
   if (action.dataset.action === "save-card-image") saveMemberCardImage();
   if (action.dataset.action === "revoke-purchase-permission") revokePurchasePermission(action.dataset.userId);
-  if (action.dataset.action === "delete-news") deleteNewsPost(action.dataset.newsId);
+  if (action.dataset.action === "delete-news") deleteNewsPost(action.dataset.newsId, action.dataset.newsUrl || "");
   if (action.dataset.action === "publish-news") {
     event.preventDefault();
     createNewsPost(action.closest("form"), action);
@@ -2364,6 +2494,7 @@ document.addEventListener("submit", (event) => {
   if (form === "coupon-grant") grantCoupon(event);
   if (form === "purchase-permission") grantPurchasePermission(event);
   if (form === "news-create" || form === "news-url-create") createNewsPost(event.currentTarget, event.submitter);
+  if (form === "news-edit") updateNewsPost(event);
   if (form === "admin-user-search") handleAdminUserSearch(event);
 });
 

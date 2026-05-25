@@ -3,7 +3,7 @@
   "id": "./admin/",
   "short_name": "ジュジュ管理",
   "description": "cafeジュジュのスタッフ向け会員・クーポン・QR管理アプリ",
-  "start_url": "./admin/login/?app=admin&v=0.2.36",
+  "start_url": "./admin/login/?app=admin&v=0.2.37",
   "scope": "./admin/",
   "display": "standalone",
   "background_color": "#090909",
