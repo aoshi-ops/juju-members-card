@@ -130,9 +130,10 @@ const monthDayDate = (value) => {
 const html = (strings, ...values) => strings.map((s, i) => s + (values[i] ?? "")).join("");
 const appPath = () => {
   const path = location.pathname;
-  if (BASE_PATH && path.startsWith(`${BASE_PATH}/`)) return path.slice(BASE_PATH.length) || "/";
+  const normalize = (value) => (value.length > 1 ? value.replace(/\/$/, "") : value);
+  if (BASE_PATH && path.startsWith(`${BASE_PATH}/`)) return normalize(path.slice(BASE_PATH.length) || "/");
   if (BASE_PATH && path === BASE_PATH) return "/";
-  return path;
+  return normalize(path);
 };
 const publicUrl = (path) => `${BASE_PATH}${path}`;
 const absoluteUrl = (path) => new URL(publicUrl(path), location.origin).href;
@@ -147,8 +148,20 @@ function isDemoAdmin() {
   return localStorage.getItem(ADMIN_DEMO_STORAGE) === "true";
 }
 
+function isAdminLaunchQuery() {
+  return new URLSearchParams(location.search).get("app") === "admin";
+}
+
+function isStandaloneApp() {
+  return window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone === true;
+}
+
 function rememberAdminApp() {
-  if (appPath().startsWith("/admin")) localStorage.setItem(ADMIN_APP_STORAGE, "true");
+  if (appPath().startsWith("/admin") || isAdminLaunchQuery()) localStorage.setItem(ADMIN_APP_STORAGE, "true");
+}
+
+function isAdminAppLaunch() {
+  return isAdminLaunchQuery();
 }
 
 function demoAdminData() {
@@ -1196,6 +1209,12 @@ function sourceLabel(url) {
   }
 }
 
+function normalizeExternalUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+}
+
 async function createNewsPost(event) {
   event.preventDefault();
   if (!event.currentTarget.reportValidity()) return;
@@ -1204,13 +1223,18 @@ async function createNewsPost(event) {
   const submitterText = submitter?.textContent;
   if (submitter) submitter.textContent = "送信中";
   const form = new FormData(event.currentTarget);
-  const url = String(form.get("url") || "").trim();
+  const mode = String(form.get("mode") || "article");
+  const url = normalizeExternalUrl(form.get("url"));
   const body = String(form.get("body") || "").trim();
   const imageUrl = String(form.get("image_url") || "").trim();
-  const title = String(form.get("title") || "").trim() || url || "NEWS";
+  const titleInput = String(form.get("title") || "").trim();
+  const title = titleInput || (mode === "url" ? sourceLabel(url) : "NEWS");
   try {
     state = { busy: true, message: "", error: "" };
-    if (!String(form.get("title") || "").trim() && !body && !url && !imageUrl) {
+    if (mode === "url" && !url) {
+      throw new Error("URLを入力してください。");
+    }
+    if (mode !== "url" && !titleInput && !body && !imageUrl) {
       throw new Error("NEWSのタイトル、本文、画像URL、外部URLのいずれかを入力してください。");
     }
     if (isDemoAdmin()) {
@@ -1289,7 +1313,7 @@ function notice() {
 }
 
 async function viewLogin() {
-  if (localStorage.getItem(ADMIN_APP_STORAGE) === "true" && (appPath() === "/" || appPath() === "/login")) {
+  if (isAdminAppLaunch() && (appPath() === "/" || appPath() === "/login")) {
     replacePath("/admin/login");
     return viewAdminLogin();
   }
@@ -1696,13 +1720,24 @@ async function viewAdminNews() {
   return layout(html`
     ${adminModeBanner()}
     <section class="page-head"><h1>NEWS管理</h1><p>イベント告知、SNS投稿、URLリンクをメンバーズカードのNEWSタイムラインへ追加します。</p></section>
-    <form class="grid-form admin-form news-form" data-form="news-create">
+    <section class="news-compose-grid">
+    <form class="grid-form admin-form news-form news-compose-card" data-form="news-create">
+      <input type="hidden" name="mode" value="article" />
+      <h2>記事を作成</h2>
       <label>タイトル<input name="title" placeholder="イベント名、投稿タイトルなど" /></label>
       <label>本文<textarea name="body" rows="4" placeholder="告知本文。URLだけで投稿する場合は空でもOK"></textarea></label>
       <label>画像URL<input name="image_url" placeholder="https://...jpg" /></label>
       <label>SNS/外部URL<input name="url" placeholder="X、Instagram、TikTok、Webページなど" /></label>
       <button class="primary" type="submit">NEWSを公開</button>
     </form>
+      <form class="grid-form admin-form news-form news-compose-card" data-form="news-url-create">
+        <input type="hidden" name="mode" value="url" />
+        <h2>URLだけで投稿</h2>
+        <label>URL<input name="url" inputmode="url" placeholder="https://x.com/... など" required /></label>
+        <p class="form-note">SNSやWebページのURLだけをNEWSに追加します。記事をタップすると元ページへ移動します。</p>
+        <button class="primary" type="submit">URLをNEWSに追加</button>
+      </form>
+    </section>
     <section class="news-timeline admin-news-timeline">
       ${posts.length ? posts.map((post) => newsPostCard(post, true)).join("") : `<p class="empty">NEWSはまだありません。</p>`}
     </section>
@@ -2029,7 +2064,12 @@ function countBy(items, key) {
 async function render() {
   try {
     const path = appPath();
-    if (path.startsWith("/admin")) rememberAdminApp();
+    if (path.startsWith("/admin") || isAdminLaunchQuery()) rememberAdminApp();
+    if (isAdminLaunchQuery() && !path.startsWith("/admin")) {
+      replacePath("/admin/login");
+      paintShell(viewAdminLogin());
+      return;
+    }
     if (path === "/" || path === "/login") paintShell(await viewLogin());
     else if (path === "/admin/login") paintShell(viewAdminLogin());
     else if (path === "/register") paintShell(viewRegister());
@@ -2215,7 +2255,7 @@ document.addEventListener("submit", (event) => {
   if (form === "coupon-create") createCoupon(event);
   if (form === "coupon-grant") grantCoupon(event);
   if (form === "purchase-permission") grantPurchasePermission(event);
-  if (form === "news-create") createNewsPost(event);
+  if (form === "news-create" || form === "news-url-create") createNewsPost(event);
   if (form === "admin-user-search") handleAdminUserSearch(event);
 });
 

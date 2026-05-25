@@ -316,18 +316,18 @@ form {
 .front {
   transform: rotateY(0deg);
   background:
-    radial-gradient(circle at 16% 12%, rgba(255, 237, 185, 0.28), transparent 30%),
-    radial-gradient(circle at 84% 86%, rgba(62, 31, 12, 0.28), transparent 34%),
-    repeating-linear-gradient(92deg, rgba(84, 48, 19, 0.12) 0 1px, transparent 1px 14px),
-    linear-gradient(135deg, rgba(177, 139, 73, 0.98), rgba(77, 46, 20, 0.95));
+    radial-gradient(circle at 16% 12%, rgba(255, 237, 185, 0.1), transparent 30%),
+    radial-gradient(circle at 84% 86%, rgba(82, 54, 24, 0.16), transparent 34%),
+    repeating-linear-gradient(92deg, rgba(255, 255, 255, 0.026) 0 1px, transparent 1px 14px),
+    linear-gradient(135deg, #171410, #050505 58%, #14100b);
 }
 
 .back {
   transform: rotateY(180deg);
   background:
-    radial-gradient(circle at 50% 20%, rgba(255, 237, 185, 0.2), transparent 28%),
-    repeating-linear-gradient(90deg, rgba(84, 48, 19, 0.14) 0 1px, transparent 1px 14px),
-    linear-gradient(145deg, rgba(146, 109, 56, 0.98), rgba(50, 31, 15, 0.98));
+    radial-gradient(circle at 50% 20%, rgba(255, 237, 185, 0.08), transparent 28%),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.026) 0 1px, transparent 1px 14px),
+    linear-gradient(145deg, #15120e, #050505 62%, #120d08);
 }
 
 .member-card::before {
@@ -337,9 +337,9 @@ form {
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(circle at 14% 16%, rgba(255, 246, 214, 0.18), transparent 12%),
-    radial-gradient(circle at 74% 58%, rgba(57, 31, 12, 0.18), transparent 10%),
-    repeating-linear-gradient(11deg, rgba(255,255,255,0.035) 0 1px, transparent 1px 7px);
+    radial-gradient(circle at 14% 16%, rgba(255, 246, 214, 0.1), transparent 12%),
+    radial-gradient(circle at 74% 58%, rgba(57, 31, 12, 0.16), transparent 10%),
+    repeating-linear-gradient(11deg, rgba(255,255,255,0.028) 0 1px, transparent 1px 7px);
   mix-blend-mode: overlay;
 }
 
@@ -696,14 +696,13 @@ form {
   inset: 0;
   z-index: 40;
   pointer-events: none;
-  opacity: 0.22;
+  opacity: 0.11;
   background:
-    repeating-linear-gradient(90deg, rgba(255,255,255,0.12) 0 1px, transparent 1px 4px),
     radial-gradient(circle at 20% 30%, rgba(255,255,255,0.16), transparent 1px),
     radial-gradient(circle at 80% 60%, rgba(0,0,0,0.4), transparent 2px);
-  background-size: 100% 100%, 90px 90px, 130px 130px;
+  background-size: 90px 90px, 130px 130px;
   mix-blend-mode: soft-light;
-  animation: filmNoise 0.42s steps(2, end) infinite;
+  animation: filmGrain 1.8s steps(2, end) infinite;
 }
 
 .user-main:has(.card-stage)::after {
@@ -712,20 +711,25 @@ form {
   inset: 0;
   z-index: 41;
   pointer-events: none;
-  opacity: 0.2;
-  background: repeating-linear-gradient(0deg, transparent 0 7px, rgba(0,0,0,0.22) 7px 8px);
-  animation: filmRoll 1.4s linear infinite;
+  opacity: 0;
+  background:
+    linear-gradient(112deg, transparent 0 44%, rgba(255,245,210,0.72) 44.18% 44.48%, transparent 44.82%),
+    linear-gradient(74deg, transparent 0 62%, rgba(255,255,255,0.42) 62.08% 62.24%, transparent 62.58%),
+    linear-gradient(139deg, transparent 0 31%, rgba(0,0,0,0.9) 31.12% 31.36%, transparent 31.7%);
+  mix-blend-mode: screen;
+  animation: crackleFlash 5.4s steps(1, end) infinite;
 }
 
-@keyframes filmNoise {
+@keyframes filmGrain {
   0% { transform: translate3d(0,0,0); filter: contrast(1.1); }
-  50% { transform: translate3d(-1.5%, 1%, 0); filter: contrast(1.35); }
-  100% { transform: translate3d(1%, -1.5%, 0); filter: contrast(1.05); }
+  50% { transform: translate3d(-0.4%, 0.3%, 0); filter: contrast(1.2); }
+  100% { transform: translate3d(0.3%, -0.4%, 0); filter: contrast(1.05); }
 }
 
-@keyframes filmRoll {
-  from { background-position-y: 0; }
-  to { background-position-y: 80px; }
+@keyframes crackleFlash {
+  0%, 79%, 81%, 88%, 90%, 100% { opacity: 0; transform: translate3d(0,0,0) scale(1); }
+  80% { opacity: 0.34; transform: translate3d(-0.6%, 0.4%, 0) scale(1.01); }
+  89% { opacity: 0.22; transform: translate3d(0.5%, -0.2%, 0) scale(1.005); }
 }
 
 .coupon-wallet {
@@ -1259,6 +1263,24 @@ form {
   margin-bottom: 18px;
 }
 
+.news-compose-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  gap: 14px;
+  align-items: start;
+  margin-bottom: 18px;
+}
+
+.news-compose-card {
+  margin: 0;
+}
+
+.news-compose-card h2 {
+  margin: 0 0 10px;
+  color: var(--gold-2);
+  font-size: 20px;
+}
+
 .admin-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1471,7 +1493,7 @@ th { color: var(--gold-2); }
   .user-main, .admin-main {
     padding: 18px 10px 42px;
   }
-  .grid-form, .metric-grid, .detail-grid, .split-lists, .qr-grid { grid-template-columns: 1fr; }
+  .grid-form, .metric-grid, .detail-grid, .split-lists, .qr-grid, .news-compose-grid { grid-template-columns: 1fr; }
   .qr-card { grid-template-columns: 112px 1fr; }
   .qr-card img { width: 112px; height: 112px; }
   .stamp-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
