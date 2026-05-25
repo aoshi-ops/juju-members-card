@@ -1266,20 +1266,28 @@ function normalizeExternalUrl(value) {
   return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
 }
 
-async function createNewsPost(event) {
-  event.preventDefault();
-  if (!event.currentTarget.reportValidity()) return;
-  const submitter = event.submitter;
+async function createNewsPost(formElement, submitter = null) {
+  if (!formElement?.reportValidity?.()) return;
   if (submitter) submitter.disabled = true;
   const submitterText = submitter?.textContent;
   if (submitter) submitter.textContent = "送信中";
-  const form = new FormData(event.currentTarget);
+  const form = new FormData(formElement);
   const mode = String(form.get("mode") || "article");
   const url = normalizeExternalUrl(form.get("url"));
   const body = String(form.get("body") || "").trim();
   const imageUrl = String(form.get("image_url") || "").trim();
   const titleInput = String(form.get("title") || "").trim();
   const title = titleInput || (mode === "url" ? sourceLabel(url) : "NEWS");
+  const publishedAt = new Date().toISOString();
+  const insertPayload = {
+    title,
+    body,
+    image_url: imageUrl || null,
+    external_url: url || null,
+    source_label: sourceLabel(url),
+    is_published: true,
+    published_at: publishedAt
+  };
   try {
     state = { busy: true, message: "", error: "" };
     if (mode === "url" && !url) {
@@ -1291,15 +1299,12 @@ async function createNewsPost(event) {
     if (isDemoAdmin()) {
       const post = {
         id: `local-news-${Date.now()}`,
-        title,
-        body,
-        image_url: imageUrl || null,
-        external_url: url || null,
-        source_label: sourceLabel(url),
+        ...insertPayload,
         is_published: true,
-        created_at: new Date().toISOString(),
-        published_at: new Date().toISOString()
+        created_at: publishedAt,
+        published_at: publishedAt
       };
+      saveLocalNewsPost(post);
       if (supabase) {
         const { error } = await supabase.rpc("create_staff_news_post", {
           p_staff_id: ADMIN_DEMO_ID,
@@ -1310,26 +1315,33 @@ async function createNewsPost(event) {
           p_external_url: url || null,
           p_source_label: sourceLabel(url)
         });
-        if (error) throw error;
-        saveLocalNewsPost(post);
-      } else {
-        saveLocalNewsPost(post);
+        if (error) {
+          const fallback = await supabase.from("news_posts").insert(insertPayload);
+          if (fallback.error) {
+            state = {
+              busy: false,
+              message: "NEWSをこの端末に保存しました。全員へ公開するには最新の supabase/schema.sql をSQL Editorで再実行してください。",
+              error: appErrorMessage(fallback.error || error)
+            };
+            render();
+            return;
+          }
+        }
       }
       state = { busy: false, message: "NEWSを公開しました。", error: "" };
       render();
       return;
     }
     if (!supabase) throw new Error("Supabase接続が必要です。");
-    const { error } = await supabase.from("news_posts").insert({
-      title,
-      body,
-      image_url: imageUrl || null,
-      external_url: url || null,
-      source_label: sourceLabel(url),
-      is_published: true,
-      published_at: new Date().toISOString()
-    });
+    const { error } = await supabase.from("news_posts").insert(insertPayload);
     if (error) throw error;
+    saveLocalNewsPost({
+      id: `local-news-${Date.now()}`,
+      ...insertPayload,
+      is_published: true,
+      created_at: publishedAt,
+      published_at: publishedAt
+    });
     state = { busy: false, message: "NEWSを公開しました。", error: "" };
   } catch (error) {
     state = { busy: false, message: "", error: appErrorMessage(error) };
@@ -1819,14 +1831,14 @@ async function viewAdminNews() {
       <label>本文<textarea name="body" rows="4" placeholder="告知本文。URLだけで投稿する場合は空でもOK"></textarea></label>
       <label>画像URL<input name="image_url" placeholder="https://...jpg" /></label>
       <label>SNS/外部URL<input name="url" placeholder="X、Instagram、TikTok、Webページなど" /></label>
-      <button class="primary" type="submit">NEWSを公開</button>
+      <button class="primary" type="button" data-action="publish-news">NEWSを公開</button>
     </form>
       <form class="grid-form admin-form news-form news-compose-card" data-form="news-url-create">
         <input type="hidden" name="mode" value="url" />
         <h2>URLだけで投稿</h2>
         <label>URL<input name="url" inputmode="url" placeholder="https://x.com/... など" required /></label>
         <p class="form-note">SNSやWebページのURLだけをNEWSに追加します。記事をタップすると元ページへ移動します。</p>
-        <button class="primary" type="submit">URLをNEWSに追加</button>
+        <button class="primary" type="button" data-action="publish-news">URLをNEWSに追加</button>
       </form>
     </section>
     <section class="news-timeline admin-news-timeline">
@@ -2270,6 +2282,10 @@ document.addEventListener("click", (event) => {
   if (action.dataset.action === "save-card-image") saveMemberCardImage();
   if (action.dataset.action === "revoke-purchase-permission") revokePurchasePermission(action.dataset.userId);
   if (action.dataset.action === "delete-news") deleteNewsPost(action.dataset.newsId);
+  if (action.dataset.action === "publish-news") {
+    event.preventDefault();
+    createNewsPost(action.closest("form"), action);
+  }
   if (action.dataset.action === "open-purchase-seal") {
     state = { ...state, purchaseSealOpen: true };
     render();
@@ -2346,7 +2362,7 @@ document.addEventListener("submit", (event) => {
   if (form === "coupon-create") createCoupon(event);
   if (form === "coupon-grant") grantCoupon(event);
   if (form === "purchase-permission") grantPurchasePermission(event);
-  if (form === "news-create" || form === "news-url-create") createNewsPost(event);
+  if (form === "news-create" || form === "news-url-create") createNewsPost(event.currentTarget, event.submitter);
   if (form === "admin-user-search") handleAdminUserSearch(event);
 });
 

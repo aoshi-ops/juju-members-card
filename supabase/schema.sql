@@ -271,7 +271,7 @@ grant select, insert, update, delete on
   public.news_reads
 to authenticated;
 
-grant select on public.news_posts to anon;
+grant select, insert on public.news_posts to anon;
 grant execute on function public.create_staff_news_post(text, text, text, text, text, text, text) to anon, authenticated;
 
 create or replace function public.is_staff()
@@ -908,7 +908,12 @@ for select using (is_published = true or public.is_staff());
 
 drop policy if exists "news_posts_staff_write" on public.news_posts;
 create policy "news_posts_staff_write" on public.news_posts
-for all using (public.is_staff()) with check (public.is_staff());
+  for all using (public.is_staff()) with check (public.is_staff());
+
+drop policy if exists "news_posts_demo_insert" on public.news_posts;
+create policy "news_posts_demo_insert" on public.news_posts
+  for insert to anon
+  with check (is_published = true);
 
 drop policy if exists "news_reads_select_own_or_staff" on public.news_reads;
 create policy "news_reads_select_own_or_staff" on public.news_reads
