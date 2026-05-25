@@ -445,6 +445,10 @@ async function loadMyData() {
   };
 }
 
+function applyUnreadNewsCount(data) {
+  state.unreadNewsCount = data?.unreadNewsCount || 0;
+}
+
 async function loadAdminData(userId = null, options = {}) {
   if (isDemoAdmin()) {
     const data = demoAdminData();
@@ -1395,6 +1399,7 @@ async function viewCompleteProfile() {
 
 async function viewMemberCard() {
   const data = await loadMyData();
+  applyUnreadNewsCount(data);
   const events = data.pointEvents;
   const points = sumRankPoints(events);
   const rank = rankFor(points);
@@ -1411,7 +1416,6 @@ async function viewMemberCard() {
   const favoriteLabel = favoriteRelic?.name || "推し呪物";
   const favoriteImage = favoriteRelic?.image || "";
   const purchasePermission = purchasePermissionFor(data.user, rank, data.purchasePermissions || []);
-  state.unreadNewsCount = data.unreadNewsCount || 0;
 
   return layout(html`
     <section class="member-actions">
@@ -1534,6 +1538,7 @@ function relicChoice(relic, current) {
 
 async function viewCoupons() {
   const data = await loadMyData();
+  applyUnreadNewsCount(data);
   const selected = data.coupons.find((coupon) => coupon.id === state.selectedCouponId);
   return layout(html`
     <section class="page-head"><h1>クーポン</h1><p>使用時はスタッフに画面を見せてください。</p></section>
@@ -1674,6 +1679,8 @@ function newsPostCard(post, admin = false) {
 async function viewNews() {
   const data = await loadMyData();
   const posts = data.newsPosts || [];
+  applyUnreadNewsCount(data);
+  state.unreadNewsCount = 0;
   markNewsRead(data.user.id, posts).catch((error) => { state.error = appErrorMessage(error); });
   return layout(html`
     <section class="page-head"><h1>NEWS</h1><p>ジュジュからのお知らせを新しい順に表示します。</p></section>
