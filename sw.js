@@ -1,4 +1,4 @@
-const CACHE = "juju-members-v0.2.27";
+const CACHE = "juju-members-v0.2.28";
 const ASSETS = [
   "./",
   "index.html",
@@ -6,6 +6,7 @@ const ASSETS = [
   "styles.css",
   "app.js",
   "manifest.json",
+  "manifest-admin.json",
   "icon.svg",
   "assets/relics/byoudon-mamori.jpg",
   "assets/relics/sange-box.jpg",

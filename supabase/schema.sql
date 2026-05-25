@@ -309,6 +309,19 @@ begin
   from public.visits
   where user_id = current_user_id and visit_date = current_date;
 
+  if exists (
+    select 1
+    from public.visits
+    where user_id = current_user_id
+      and visit_type = visit_kind
+      and visited_at > now() - interval '5 seconds'
+  ) then
+    return jsonb_build_object(
+      'recorded', false,
+      'message', '直前に同じ来店QRを記録済みです。少し待ってから再度読み取ってください。'
+    );
+  end if;
+
   if today_count >= 2 then
     return jsonb_build_object(
       'recorded', false,
@@ -372,6 +385,19 @@ begin
     raise exception 'サウンドホラー作品が見つかりません。';
   end if;
 
+  if exists (
+    select 1
+    from public.sound_horror_listens
+    where user_id = current_user_id
+      and sound_horror_id = horror_id
+      and listened_at > now() - interval '5 seconds'
+  ) then
+    return jsonb_build_object(
+      'recorded', false,
+      'message', '直前に同じサウンドホラーQRを記録済みです。少し待ってから再度読み取ってください。'
+    );
+  end if;
+
   insert into public.sound_horror_listens (user_id, sound_horror_id, point_value)
   values (current_user_id, horror_id, 2.0)
   returning id into listen_id;
@@ -424,6 +450,21 @@ begin
     points := 3.0;
   else
     raise exception '体験サービスが見つかりません。';
+  end if;
+
+  if exists (
+    select 1
+    from public.point_events
+    where user_id = current_user_id
+      and point_type = 'special'
+      and source_type = 'special_experience'
+      and memo = experience_title
+      and created_at > now() - interval '5 seconds'
+  ) then
+    return jsonb_build_object(
+      'recorded', false,
+      'message', '直前に同じ体験QRを記録済みです。少し待ってから再度読み取ってください。'
+    );
   end if;
 
   insert into public.point_events (user_id, point_type, point_value, rank_affects, source_type, memo, created_by)
@@ -635,15 +676,28 @@ with (security_invoker = true)
 as
 select
   u.*,
-  coalesce(sum(pe.point_value) filter (where pe.rank_affects = true), 0)::numeric(8,1) as rank_points,
-  count(distinct v.id) as total_visit_count,
-  count(distinct shl.id) as sound_horror_listen_count,
-  max(v.visited_at) as last_visited_at
-from public.users u
-left join public.point_events pe on pe.user_id = u.id
-left join public.visits v on v.user_id = u.id
-left join public.sound_horror_listens shl on shl.user_id = u.id
-group by u.id;
+  coalesce((
+    select sum(pe.point_value)
+    from public.point_events pe
+    where pe.user_id = u.id
+      and pe.rank_affects = true
+  ), 0)::numeric(8,1) as rank_points,
+  (
+    select count(*)
+    from public.visits v
+    where v.user_id = u.id
+  ) as total_visit_count,
+  (
+    select count(*)
+    from public.sound_horror_listens shl
+    where shl.user_id = u.id
+  ) as sound_horror_listen_count,
+  (
+    select max(v.visited_at)
+    from public.visits v
+    where v.user_id = u.id
+  ) as last_visited_at
+from public.users u;
 
 grant select on public.admin_user_summaries to authenticated;
 grant execute on function public.is_staff() to authenticated;

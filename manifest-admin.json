@@ -1,8 +1,8 @@
 {
-  "name": "cafeジュジュ メンバーズカード",
-  "short_name": "cafeジュジュ",
-  "description": "呪物cafeジュジュの会員証、来店記録、サウンドホラースタンプカード。",
-  "start_url": "member-card",
+  "name": "cafeジュジュ 管理アプリ",
+  "short_name": "ジュジュ管理",
+  "description": "cafeジュジュのスタッフ向け会員・クーポン・QR管理アプリ",
+  "start_url": "admin/login",
   "scope": "./",
   "display": "standalone",
   "background_color": "#090909",

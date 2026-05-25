@@ -24,6 +24,13 @@ const currentSoundHorrors = (horrors = []) =>
 const specialExperiences = [
   { code: "sange-box", title: "さんげの箱", point: 3 }
 ];
+const contactInfo = {
+  phone: "03-5913-8428",
+  email: "obakendesk@gmail.com",
+  address: "〒168-0062 東京都杉並区方南2-4-27",
+  hp: "https://obaken-event.wixsite.com/cafe-joujou"
+};
+
 const welcomeCoupon = {
   title: "会員登録キャンペーンクーポン",
   description: "サウンドホラー一回無料（￥1,000作品のみ対象）"
@@ -88,6 +95,9 @@ let qrFrame = 0;
 let qrScanning = false;
 let iconDrag = null;
 let jsQrDecoder = null;
+let qrDetecting = false;
+let lastQrValue = "";
+let lastQrAt = 0;
 
 const app = document.querySelector("#app");
 const scriptUrl = new URL(import.meta.url);
@@ -430,7 +440,7 @@ async function loadMyData() {
   };
 }
 
-async function loadAdminData(userId = null) {
+async function loadAdminData(userId = null, options = {}) {
   if (isDemoAdmin()) {
     const data = demoAdminData();
     return userId ? { ...data, users: data.users.filter((user) => user.id === userId) } : data;
@@ -464,6 +474,7 @@ async function loadAdminData(userId = null) {
   if (!["staff", "admin"].includes(profile?.role)) throw new Error("スタッフ権限がありません。");
 
   const usersQuery = supabase.from("admin_user_summaries").select("*").order("created_at", { ascending: false });
+  const includeNews = options.includeNews === true;
   const [users, visits, listens, points, coupons, purchasePermissions, newsPosts] = await Promise.all([
     userId ? supabase.from("users").select("*").eq("id", userId).single() : usersQuery,
     userId ? supabase.from("visits").select("*").eq("user_id", userId).order("visited_at", { ascending: false }) : supabase.from("visits").select("*").order("visited_at", { ascending: false }).limit(200),
@@ -471,7 +482,7 @@ async function loadAdminData(userId = null) {
     userId ? supabase.from("point_events").select("*").eq("user_id", userId).order("created_at", { ascending: false }) : supabase.from("point_events").select("*").order("created_at", { ascending: false }).limit(200),
     userId ? supabase.from("user_coupons").select("*, coupons(*)").eq("user_id", userId) : supabase.from("coupons").select("*").order("created_at", { ascending: false }),
     optionalQuery(userId ? supabase.from("user_purchase_permissions").select("*").eq("user_id", userId).eq("is_active", true) : supabase.from("user_purchase_permissions").select("*").eq("is_active", true)),
-    optionalQuery(supabase.from("news_posts").select("*").order("published_at", { ascending: false }).limit(100))
+    includeNews ? optionalQuery(supabase.from("news_posts").select("*").order("published_at", { ascending: false }).limit(100)) : Promise.resolve({ data: [] })
   ]);
 
   for (const result of [users, visits, listens, points, coupons, purchasePermissions, newsPosts]) {
@@ -788,6 +799,7 @@ function stopQrScanner() {
   qrFrame = 0;
   if (qrStream) qrStream.getTracks().forEach((track) => track.stop());
   qrStream = null;
+  qrDetecting = false;
 }
 
 async function startQrScanner() {
@@ -819,6 +831,11 @@ async function startQrScanner() {
     }
     const scan = async () => {
       if (!qrScanning) return;
+      if (qrDetecting) {
+        qrFrame = requestAnimationFrame(scan);
+        return;
+      }
+      qrDetecting = true;
       try {
         if (video.readyState >= 2) {
           let value = "";
@@ -837,11 +854,20 @@ async function startQrScanner() {
             }
           }
           if (value) {
+            const now = Date.now();
+            if (value === lastQrValue && now - lastQrAt < 5000) {
+              qrDetecting = false;
+              qrFrame = requestAnimationFrame(scan);
+              return;
+            }
+            lastQrValue = value;
+            lastQrAt = now;
             stopQrScanner();
             openQrValue(value);
             return;
           }
         }
+        qrDetecting = false;
       } catch (error) {
         stopQrScanner();
         state = { busy: false, message: "", error: appErrorMessage(error) };
@@ -926,9 +952,14 @@ async function useCoupon(couponId) {
 
 function autoQrAction(key, action, label = "記録しています") {
   const autoKey = `${key}:${state.qrNonce || "direct"}`;
-  if (state.qrProcessingKey !== autoKey) {
+  state.qrDoneKeys = state.qrDoneKeys || new Set();
+  if (!state.qrDoneKeys.has(autoKey)) {
+    state.qrDoneKeys.add(autoKey);
     state = { ...state, qrProcessingKey: autoKey, busy: true, message: "", error: "" };
-    setTimeout(action, 0);
+    setTimeout(() => {
+      if (state.qrProcessingKey !== autoKey) return;
+      action();
+    }, 0);
   }
   return layout(html`
     <section class="action-panel">
@@ -937,6 +968,58 @@ function autoQrAction(key, action, label = "記録しています") {
       <button data-link="/member-card">会員証へ戻る</button>
     </section>
   `);
+}
+
+async function revokeUserPoints(event) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  const value = Math.abs(Number(form.get("point_value") || 0));
+  try {
+    if (!value) throw new Error("没収するポイント数を入力してください。");
+    if (isDemoAdmin()) { state = { busy: false, message: `デモ管理で ${value}pt 没収操作を確認しました。`, error: "" }; render(); return; }
+    if (!supabase) throw new Error("Supabase接続が必要です。");
+    const { error } = await supabase.from("point_events").insert({
+      user_id: form.get("user_id"),
+      point_type: "manual",
+      point_value: -value,
+      rank_affects: true,
+      source_type: "manual",
+      memo: `ポイント没収 / ${form.get("memo") || ""}`.trim()
+    });
+    if (error) throw error;
+    state = { busy: false, message: `${value}ptを没収しました。`, error: "" };
+  } catch (error) {
+    state = { busy: false, message: "", error: appErrorMessage(error) };
+  }
+  render();
+}
+
+async function saveMemberCardImage() {
+  try {
+    const target = document.querySelector(".flip-card");
+    if (!target) throw new Error("保存する会員証が見つかりません。");
+    state = { ...state, message: "会員証画像を作成しています。", error: "" };
+    const mod = await import("https://esm.sh/html2canvas@1.4.1");
+    const html2canvas = mod.default || mod;
+    const canvas = await html2canvas(target, { backgroundColor: null, scale: Math.min(3, window.devicePixelRatio || 2), useCORS: true });
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    if (!blob) throw new Error("画像を作成できませんでした。");
+    const file = new File([blob], "juju-members-card.png", { type: "image/png" });
+    if (navigator.canShare?.({ files: [file] }) && navigator.share) {
+      await navigator.share({ files: [file], title: "cafeジュジュ メンバーズカード" });
+    } else {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "juju-members-card.png";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+    state = { busy: false, message: "会員証画像を保存できます。", error: "" };
+  } catch (error) {
+    state = { busy: false, message: "", error: appErrorMessage(error) };
+  }
+  render();
 }
 
 async function grantSpecialPoint(event) {
@@ -992,9 +1075,13 @@ async function createCoupon(event) {
 
 async function grantCoupon(event) {
   event.preventDefault();
+  if (!event.currentTarget.reportValidity()) return;
+  const submitter = event.submitter;
+  if (submitter) submitter.disabled = true;
   const form = new FormData(event.currentTarget);
   try {
     state = { busy: true, message: "", error: "" };
+    if (!form.get("user_id") || !form.get("coupon_id")) throw new Error("対象ユーザーとクーポンを選択してください。");
     if (isDemoAdmin()) {
       state = { busy: false, message: "デモ管理では直接付与の操作確認だけ行いました。", error: "" };
       render();
@@ -1018,6 +1105,8 @@ async function grantCoupon(event) {
     state = { busy: false, message: "会員にクーポンを付与しました。", error: "" };
   } catch (error) {
     state = { busy: false, message: "", error: appErrorMessage(error) };
+  } finally {
+    if (submitter) submitter.disabled = false;
   }
   render();
 }
@@ -1095,10 +1184,19 @@ function sourceLabel(url) {
 
 async function createNewsPost(event) {
   event.preventDefault();
+  if (!event.currentTarget.reportValidity()) return;
+  const submitter = event.submitter;
+  if (submitter) submitter.disabled = true;
   const form = new FormData(event.currentTarget);
   const url = String(form.get("url") || "").trim();
+  const body = String(form.get("body") || "").trim();
+  const imageUrl = String(form.get("image_url") || "").trim();
   const title = String(form.get("title") || "").trim() || url || "NEWS";
   try {
+    state = { busy: true, message: "", error: "" };
+    if (!String(form.get("title") || "").trim() && !body && !url && !imageUrl) {
+      throw new Error("NEWSのタイトル、本文、画像URL、外部URLのいずれかを入力してください。");
+    }
     if (isDemoAdmin()) {
       state = { busy: false, message: "デモ管理ではNEWS作成UIの確認だけ行いました。", error: "" };
       render();
@@ -1107,8 +1205,8 @@ async function createNewsPost(event) {
     if (!supabase) throw new Error("Supabase接続が必要です。");
     const { error } = await supabase.from("news_posts").insert({
       title,
-      body: String(form.get("body") || "").trim(),
-      image_url: String(form.get("image_url") || "").trim() || null,
+      body,
+      image_url: imageUrl || null,
       external_url: url || null,
       source_label: sourceLabel(url),
       is_published: true,
@@ -1118,6 +1216,8 @@ async function createNewsPost(event) {
     state = { busy: false, message: "NEWSを公開しました。", error: "" };
   } catch (error) {
     state = { busy: false, message: "", error: appErrorMessage(error) };
+  } finally {
+    if (submitter) submitter.disabled = false;
   }
   render();
 }
@@ -1146,7 +1246,7 @@ function layout(content, admin = false) {
       <nav>
         ${admin
           ? `<button data-link="/admin/dashboard">管理</button><button data-link="/admin/users">登録者</button><button data-link="/admin/visits">履歴</button><button data-link="/admin/points">特別ポイント</button><button data-link="/admin/qr">QR表示</button><button data-link="/admin/coupons">クーポン</button><button data-link="/admin/news">NEWS</button>`
-          : `<button data-link="/member-card">会員証</button><button data-link="/coupons">クーポン</button><button data-link="/special-cards">特別カード</button><button class="news-nav-button" data-link="/news">NEWS${state.unreadNewsCount ? `<span class="news-badge">${state.unreadNewsCount}</span>` : ""}</button>`}
+          : `<button data-link="/member-card">会員証</button><button data-link="/coupons">クーポン</button><button data-link="/special-cards">特別カード</button><button class="news-nav-button" data-link="/news">NEWS${state.unreadNewsCount ? `<span class="news-badge">${state.unreadNewsCount}</span>` : ""}</button><button data-link="/contact">コンタクト</button>`}
         <button data-action="logout">ログアウト</button>
       </nav>
     </header>
@@ -1294,6 +1394,7 @@ async function viewMemberCard() {
   return layout(html`
     <section class="member-actions">
       <button class="primary" data-link="/scan">QRを読み取る</button>
+      <button type="button" data-action="save-card-image">画像を保存</button>
     </section>
     <section class="card-stage">
       <div class="flip-card" data-action="flip-card">
@@ -1497,6 +1598,18 @@ function viewSettings() {
   `);
 }
 
+function viewContact() {
+  return layout(html`
+    <section class="page-head"><h1>コンタクト</h1><p>店舗への連絡先とアクセス情報です。</p></section>
+    <section class="contact-grid">
+      <a class="contact-card" href="tel:${contactInfo.phone}"><span>電話番号</span><strong>${contactInfo.phone}</strong></a>
+      <a class="contact-card" href="mailto:${contactInfo.email}"><span>メール</span><strong>${contactInfo.email}</strong></a>
+      <a class="contact-card" href="https://maps.google.com/?q=${encodeURIComponent(contactInfo.address)}" target="_blank" rel="noopener noreferrer"><span>住所</span><strong>${contactInfo.address}</strong></a>
+      <a class="contact-card" href="${contactInfo.hp}" target="_blank" rel="noopener noreferrer"><span>HP</span><strong>${contactInfo.hp}</strong></a>
+    </section>
+  `);
+}
+
 function viewSpecialCards() {
   return layout(html`
     <section class="page-head"><h1>特別カード</h1><p>期間限定カードやコラボカードを追加できる土台です。</p></section>
@@ -1547,7 +1660,7 @@ async function viewNews() {
 }
 
 async function viewAdminNews() {
-  const data = await loadAdminData();
+  const data = await loadAdminData(null, { includeNews: true });
   const posts = data.newsPosts || [];
   return layout(html`
     ${adminModeBanner()}
@@ -1614,23 +1727,107 @@ function qrModal(qr) {
   `;
 }
 
+const analyticsLabels = {
+  gender: "性別割合",
+  age: "年齢分布",
+  horror: "サウンドホラー利用回数",
+  rank: "ランク帯分布"
+};
+const analyticsColors = ["#d8b65c", "#8fb89b", "#b36b6b", "#7f89b8", "#b08ab8", "#9f8a68", "#d7d0ba"];
+
+function adminAnalyticsSegments(data, mode) {
+  const users = data.users || [];
+  const rankPointsByUser = Object.fromEntries(users.map((user) => [user.id, Number(user.rank_points ?? 0)]));
+  if (!users.length) return [{ label: "登録者なし", value: 1, empty: true }];
+  if (mode === "gender") {
+    return bucketSegments(users, (user) => user.gender || "未回答");
+  }
+  if (mode === "age") {
+    return bucketSegments(users, (user) => ageBand(user.age));
+  }
+  if (mode === "horror") {
+    const listenCountByUser = countBy(data.listens || [], "user_id");
+    return bucketSegments(users, (user) => {
+      const count = listenCountByUser[user.id] || Number(user.sound_horror_listen_count || 0);
+      if (count >= 5) return "5回以上";
+      return `${count}回`;
+    }, ["0回", "1回", "2回", "3回", "4回", "5回以上"]);
+  }
+  return bucketSegments(users, (user) => {
+    const rank = rankFor(rankPointsByUser[user.id] || 0);
+    return `ランク${rank.n}`;
+  }, ranks.map((rank) => `ランク${rank.n}`));
+}
+
+function bucketSegments(items, pick, order = null) {
+  const counts = items.reduce((acc, item) => {
+    const label = pick(item);
+    acc[label] = (acc[label] || 0) + 1;
+    return acc;
+  }, {});
+  const labels = order || Object.keys(counts);
+  const segments = labels.map((label) => ({ label, value: counts[label] || 0 })).filter((segment) => segment.value > 0);
+  return segments.length ? segments : [{ label: "データなし", value: 1, empty: true }];
+}
+
+function ageBand(age) {
+  const value = Number(age);
+  if (!value) return "未回答";
+  if (value < 20) return "10代";
+  if (value < 30) return "20代";
+  if (value < 40) return "30代";
+  if (value < 50) return "40代";
+  if (value < 60) return "50代";
+  return "60代以上";
+}
+
+function pieChart(segments) {
+  const total = segments.reduce((sum, segment) => sum + segment.value, 0) || 1;
+  let cursor = 0;
+  const stops = segments.map((segment, index) => {
+    const start = cursor;
+    cursor += (segment.value / total) * 100;
+    const color = segment.empty ? "#403b32" : analyticsColors[index % analyticsColors.length];
+    return `${color} ${start}% ${cursor}%`;
+  }).join(", ");
+  return html`
+    <div class="analytics-chart" style="--pie:${stops}">
+      <div class="pie"></div>
+      <div class="pie-legend">
+        ${segments.map((segment, index) => `<span><i style="background:${segment.empty ? "#403b32" : analyticsColors[index % analyticsColors.length]}"></i>${segment.label}<strong>${segment.empty ? 0 : segment.value}</strong></span>`).join("")}
+      </div>
+    </div>
+  `;
+}
+
 async function viewAdminDashboard() {
   const data = await loadAdminData();
   const users = data.users || [];
+  const mode = state.analyticsMode || "gender";
+  const segments = adminAnalyticsSegments(data, mode);
   return layout(html`
     ${adminModeBanner()}
     <section class="page-head"><h1>スタッフ管理</h1><p>スタッフ・管理者だけが登録者全員の情報を扱えます。</p></section>
     <section class="metric-grid">
       <div class="metric"><span>登録者数</span><strong>${users.length}</strong></div>
-      <div class="metric"><span>来店履歴</span><strong>${data.visits.length}</strong></div>
-      <div class="metric"><span>体験履歴</span><strong>${data.listens.length}</strong></div>
-      <div class="metric"><span>ポイント履歴</span><strong>${data.pointEvents.length}</strong></div>
+      <div class="metric"><span>累計来店</span><strong>${data.visits.length}</strong></div>
+      <div class="metric"><span>サウンドホラー体験</span><strong>${data.listens.length}</strong></div>
+      <div class="metric"><span>発行クーポン</span><strong>${data.coupons.length}</strong></div>
     </section>
     <section class="admin-actions">
       <button data-link="/admin/users">登録者一覧</button>
-      <button data-link="/admin/visits">来店・ポイント履歴</button>
       <button data-link="/admin/points">特別ポイント付与</button>
       <button data-link="/admin/qr">店舗QRを表示</button>
+      <button data-link="/admin/coupons">クーポン管理</button>
+    </section>
+    <section class="list-section analytics-panel">
+      <div class="section-head">
+        <h2>登録者分析</h2>
+        <div class="segmented">
+          ${Object.entries(analyticsLabels).map(([key, label]) => `<button type="button" class="${mode === key ? "active" : ""}" data-action="analytics-mode" data-mode="${key}">${label}</button>`).join("")}
+        </div>
+      </div>
+      ${pieChart(segments)}
     </section>
   `, true);
 }
@@ -1640,14 +1837,6 @@ async function viewAdminUsers() {
   return layout(html`
     ${adminModeBanner()}
     <section class="page-head"><h1>登録者一覧</h1><p>本名、誕生日、性別、年齢を含むため /admin と RLS で保護します。</p></section>
-    <section class="intake-panel">
-      <h2>メンバーズカード登録情報の受け皿</h2>
-      <p>会員登録フォームから送信された情報は users テーブルに保存され、この一覧に表示されます。登録詳細の見せ方は、メンバーズカード側の登録フローを固めてから調整します。</p>
-      <div class="intake-grid">
-        <span>受信予定</span><strong>本名 / ユーザーネーム / 誕生日 / 性別 / 年齢 / メール / 誕生日表示 / 推し呪物</strong>
-        <span>権限</span><strong>user は本人のみ、staff/admin は全員を閲覧</strong>
-      </div>
-    </section>
     <section class="table-wrap">
       <table>
         <thead><tr><th>会員番号</th><th>本名</th><th>ユーザーネーム</th><th>性別</th><th>年齢</th><th>ランクpt</th><th>詳細</th></tr></thead>
@@ -1692,6 +1881,17 @@ async function viewAdminUserDetail() {
         <button class="primary" type="submit">低ランクでも刻印を付与</button>
       </form>
       ${purchasePermission.manual ? `<button type="button" data-action="revoke-purchase-permission" data-user-id="${user.id}">手動刻印を解除</button>` : ""}
+    </section>
+    <section class="list-section"><h2>ポイント没収</h2>
+      <form class="grid-form admin-form compact" data-form="point-revoke">
+        <input type="hidden" name="user_id" value="${user.id}" />
+        <label>没収ポイント<input name="point_value" type="number" min="0.5" step="0.5" required placeholder="0.5刻み" /></label>
+        <label>メモ<input name="memo" placeholder="誤付与修正など" /></label>
+        <button class="primary" type="submit">ポイントを没収</button>
+      </form>
+    </section>
+    <section class="list-section"><h2>保有クーポン</h2>
+      ${data.coupons.length ? data.coupons.map((item) => `<article class="item coupon-grant-row"><div><strong>${item.coupons?.title || "クーポン"}</strong><span>${item.coupons?.description || ""}</span><small>${couponStatusLabel(item.status)} / ${yenDate(item.issued_at)}</small></div><button type="button" data-action="delete-granted-coupon" data-user-coupon-id="${item.id}">削除</button></article>`).join("") : `<p class="empty">この会員のクーポンはありません。</p>`}
     </section>
     <section class="list-section"><h2>来店履歴</h2>${data.visits.length ? data.visits.map((visit) => `<article class="item"><strong>${visitLabel(visit.visit_type)} / ${visit.point_value}pt</strong><span>${yenDate(visit.visited_at)}</span></article>`).join("") : `<p class="empty">来店履歴はまだありません。</p>`}</section>
     <section class="list-section"><h2>ポイント履歴</h2>${data.pointEvents.map((p) => `<article class="item"><strong>${p.point_type} / ${p.point_value}pt</strong><span>${p.memo || ""}</span><small>${yenDate(p.created_at)}</small></article>`).join("")}</section>
@@ -1759,12 +1959,6 @@ async function viewAdminPoints() {
 async function viewAdminCoupons() {
   const data = await loadAdminData();
   const coupons = data.coupons || [];
-  const granted = supabase && !isDemoAdmin()
-    ? await supabase.from("user_coupons").select("*, users(member_number, real_name), coupons(title)").order("issued_at", { ascending: false }).then((result) => {
-        if (result.error) throw result.error;
-        return result.data || [];
-      })
-    : [];
   return layout(html`
     ${adminModeBanner()}
     <section class="page-head"><h1>クーポン管理</h1><p>タイトルと説明文だけのシンプルなクーポンを作成し、QR取得または会員への直接付与ができます。</p></section>
@@ -1782,10 +1976,6 @@ async function viewAdminCoupons() {
     <section class="list-section">
       <h2>作成済みクーポン</h2>
       ${coupons.length ? coupons.map((c) => `<article class="coupon-admin-item" data-action="open-qr-modal" data-qr-title="${encodeURIComponent(`クーポン: ${c.title}`)}" data-qr-path="${encodeURIComponent(`/qr/coupon/${c.id}`)}"><div><strong>${c.title}</strong><span>${c.description || ""}</span><small>${c.expires_at ? yenDate(c.expires_at) : "無期限"}</small><code>${new URL(publicUrl(`/qr/coupon/${c.id}`), location.origin).href}</code></div><img src="${qrUrl(`/qr/coupon/${c.id}`)}" alt="${c.title} QR" /></article>`).join("") : `<p class="empty">登録済みクーポンはありません。</p>`}
-    </section>
-    <section class="list-section">
-      <h2>付与済みクーポン</h2>
-      ${granted.length ? granted.map((item) => `<article class="item coupon-grant-row"><div><strong>${item.coupons?.title || "クーポン"}</strong><span>${item.users?.member_number || "-"} / ${item.users?.real_name || ""}</span><small>${couponStatusLabel(item.status)} / ${yenDate(item.issued_at)}</small></div><button type="button" data-action="delete-granted-coupon" data-user-coupon-id="${item.id}">削除</button></article>`).join("") : `<p class="empty">付与済みクーポンはまだありません。</p>`}
     </section>
     ${state.qrModal ? qrModal(state.qrModal) : ""}
   `, true);
@@ -1809,6 +1999,7 @@ async function render() {
     else if (path === "/scan") paintShell(viewScan());
     else if (path === "/coupons") paintShell(await viewCoupons());
     else if (path === "/news") paintShell(await viewNews());
+    else if (path === "/contact") paintShell(viewContact());
     else if (path === "/qr/visit") paintShell(await viewQrVisit());
     else if (path.startsWith("/qr/sound-horror/")) paintShell(await viewQrSound());
     else if (path.startsWith("/qr/special/")) paintShell(await viewQrSpecial());
@@ -1906,6 +2097,7 @@ document.addEventListener("click", (event) => {
   if (action.dataset.action === "use-coupon") useCoupon(action.dataset.couponId);
   if (action.dataset.action === "claim-coupon") claimCoupon(action.dataset.couponId);
   if (action.dataset.action === "delete-granted-coupon") deleteGrantedCoupon(action.dataset.userCouponId);
+  if (action.dataset.action === "save-card-image") saveMemberCardImage();
   if (action.dataset.action === "revoke-purchase-permission") revokePurchasePermission(action.dataset.userId);
   if (action.dataset.action === "delete-news") deleteNewsPost(action.dataset.newsId);
   if (action.dataset.action === "open-purchase-seal") {
@@ -1932,6 +2124,10 @@ document.addEventListener("click", (event) => {
   if (action.dataset.action === "close-qr-modal") {
     if (event.target.closest(".qr-modal") && !event.target.closest("button")) return;
     state = { ...state, qrModal: null };
+    render();
+  }
+  if (action.dataset.action === "analytics-mode") {
+    state = { ...state, analyticsMode: action.dataset.mode || "gender" };
     render();
   }
   if (action.dataset.action === "close-icon-editor") {
@@ -1976,6 +2172,7 @@ document.addEventListener("submit", (event) => {
   if (form === "complete-profile") handleCompleteProfile(event);
   if (form === "config") handleConfig(event);
   if (form === "special-point") grantSpecialPoint(event);
+  if (form === "point-revoke") revokeUserPoints(event);
   if (form === "coupon-create") createCoupon(event);
   if (form === "coupon-grant") grantCoupon(event);
   if (form === "purchase-permission") grantPurchasePermission(event);
