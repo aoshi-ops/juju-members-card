@@ -1555,13 +1555,14 @@ async function viewMemberCard() {
                 ${icon ? `<img src="${icon}" alt="ユーザーアイコン" />` : `<span>${(data.user.username || "J").slice(0, 1).toUpperCase()}</span>`}
                 <input type="file" accept="image/*" data-action="icon-upload" />
               </label>
-              <button type="button" class="favorite-relic-badge ${favoriteImage ? "has-image" : ""}" data-action="open-relic-picker" data-no-flip>
+              <button type="button" class="favorite-relic-badge ${favoriteImage ? "has-image" : ""}" data-action="open-relic-picker" data-relic-label="${favoriteLabel}" data-no-flip>
                 ${favoriteImage ? `<img src="${favoriteImage}" alt="${favoriteLabel}" />` : `<span class="relic-placeholder">?</span>`}
+                <span class="relic-curse" aria-hidden="true">${favoriteLabel.slice(0, 2)}</span>
                 <strong>${favoriteLabel}</strong>
               </button>
             </div>
           </div>
-          <div class="rank-badge"><span>称号 ${rank.n}</span><strong>${rank.name}</strong></div>
+          <div class="rank-badge" data-rank-label="${rank.name}"><span>称号 ${rank.n}</span><i class="rank-curse" aria-hidden="true">${rank.name}</i><strong>${rank.name}</strong></div>
           ${purchasePermission.allowed ? `<button type="button" class="purchase-seal ${purchasePermission.manual ? "manual" : ""}" data-action="open-purchase-seal" data-no-flip><span>呪物購入資格</span><strong>許</strong></button>` : ""}
           <div class="point-strip">
             <span>現在ポイント</span>
