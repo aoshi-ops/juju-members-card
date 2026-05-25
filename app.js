@@ -113,6 +113,7 @@ const iconStorageKey = (userId) => `JUJU_ICON_${userId}`;
 const relicStorageKey = (userId) => `JUJU_FAVORITE_RELIC_${userId}`;
 const couponEnsuredKey = (userId) => `JUJU_COUPON_READY_${userId}`;
 const newsReadStorageKey = (userId) => `JUJU_NEWS_READ_${userId}`;
+const NEWS_LOCAL_STORAGE = "JUJU_LOCAL_NEWS_POSTS";
 const cfg = () => ({
   url: localStorage.getItem("SUPABASE_URL") || DEFAULT_SUPABASE_URL,
   anon: localStorage.getItem("SUPABASE_ANON_KEY") || DEFAULT_SUPABASE_ANON_KEY
@@ -127,6 +128,15 @@ const monthDayDate = (value) => {
   if (Number.isNaN(date.getTime())) return "-";
   return date.toLocaleDateString("ja-JP", { month: "numeric", day: "numeric" });
 };
+function calculateAgeFromBirthday(value) {
+  const birthday = new Date(value);
+  if (Number.isNaN(birthday.getTime())) return 0;
+  const today = new Date();
+  let age = today.getFullYear() - birthday.getFullYear();
+  const monthDiff = today.getMonth() - birthday.getMonth();
+  if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthday.getDate())) age -= 1;
+  return Math.max(0, Math.min(120, age));
+}
 const html = (strings, ...values) => strings.map((s, i) => s + (values[i] ?? "")).join("");
 const appPath = () => {
   const path = location.pathname;
@@ -185,26 +195,28 @@ function demoAdminData() {
 }
 
 function registrationPayloadFromForm(form, authUserId = null) {
+  const birthday = String(form.get("birthday") || "");
   return {
     auth_user_id: authUserId,
     email: String(form.get("email") || "").trim(),
     real_name: String(form.get("real_name") || "").trim(),
     username: String(form.get("username") || "").trim(),
-    birthday: String(form.get("birthday") || ""),
-    age: Number(form.get("age")),
+    birthday,
+    age: calculateAgeFromBirthday(birthday),
     gender: String(form.get("gender") || "回答しない"),
     birthday_visible: form.get("birthday_visible") === "on"
   };
 }
 
 function profilePayloadFromForm(form, authUser) {
+  const birthday = String(form.get("birthday") || "");
   return {
     auth_user_id: authUser.id,
     email: authUser.email,
     real_name: String(form.get("real_name") || "").trim(),
     username: String(form.get("username") || "").trim(),
-    birthday: String(form.get("birthday") || ""),
-    age: Number(form.get("age")),
+    birthday,
+    age: calculateAgeFromBirthday(birthday),
     gender: String(form.get("gender") || "回答しない"),
     birthday_visible: form.get("birthday_visible") === "on"
   };
@@ -224,14 +236,14 @@ function readPendingRegistration() {
 
 function profileFromAuthMetadata(authUser) {
   const meta = authUser?.user_metadata || {};
-  if (!meta.real_name || !meta.username || !meta.birthday || meta.age === undefined || !meta.gender) return null;
+  if (!meta.real_name || !meta.username || !meta.birthday || !meta.gender) return null;
   return {
     auth_user_id: authUser.id,
     email: authUser.email,
     real_name: meta.real_name,
     username: meta.username,
     birthday: meta.birthday,
-    age: Number(meta.age),
+    age: Number(meta.age ?? calculateAgeFromBirthday(meta.birthday)),
     gender: meta.gender,
     birthday_visible: meta.birthday_visible !== false
   };
@@ -299,6 +311,27 @@ function storedReadNewsIds(userId) {
   } catch {
     return new Set();
   }
+}
+
+function localNewsPosts() {
+  try {
+    return JSON.parse(localStorage.getItem(NEWS_LOCAL_STORAGE) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalNewsPost(post) {
+  const posts = [post, ...localNewsPosts()].slice(0, 100);
+  localStorage.setItem(NEWS_LOCAL_STORAGE, JSON.stringify(posts));
+}
+
+function mergeNewsPosts(remotePosts = []) {
+  const map = new Map();
+  [...localNewsPosts(), ...remotePosts].forEach((post) => {
+    if (post?.id) map.set(post.id, post);
+  });
+  return [...map.values()].sort((a, b) => new Date(b.published_at || b.created_at || 0) - new Date(a.published_at || a.created_at || 0));
 }
 
 function purchasePermissionFor(user, rank, permissions = []) {
@@ -440,7 +473,8 @@ async function loadMyData() {
 
   const readIds = new Set((newsReads.data || []).map((read) => read.news_post_id));
   const localReadIds = storedReadNewsIds(user.id);
-  const unreadNewsCount = (newsPosts.data || []).filter((post) => !readIds.has(post.id) && !localReadIds.has(post.id)).length;
+  const mergedNewsPosts = mergeNewsPosts(newsPosts.data || []);
+  const unreadNewsCount = mergedNewsPosts.filter((post) => !readIds.has(post.id) && !localReadIds.has(post.id)).length;
 
   return {
     profile: profile || { role: "user" },
@@ -452,7 +486,7 @@ async function loadMyData() {
     soundHorrors: currentSoundHorrors(horrors.data || []),
     relics: relics.data || [],
     purchasePermissions: purchasePermissions.data || [],
-    newsPosts: newsPosts.data || [],
+    newsPosts: mergedNewsPosts,
     newsReads: newsReads.data || [],
     unreadNewsCount
   };
@@ -510,7 +544,7 @@ async function loadAdminData(userId = null, options = {}) {
   for (const result of [users, visits, listens, points, coupons, purchasePermissions, newsPosts]) {
     if (result.error) throw result.error;
   }
-  return { users: userId ? [users.data] : users.data, visits: visits.data, listens: listens.data, pointEvents: points.data, coupons: coupons.data, purchasePermissions: purchasePermissions.data || [], newsPosts: newsPosts.data || [] };
+  return { users: userId ? [users.data] : users.data, visits: visits.data, listens: listens.data, pointEvents: points.data, coupons: coupons.data, purchasePermissions: purchasePermissions.data || [], newsPosts: includeNews ? mergeNewsPosts(newsPosts.data || []) : [] };
 }
 
 async function handleLogin(event) {
@@ -593,7 +627,6 @@ async function handleRegister(event) {
           real_name: payload.real_name,
           username: payload.username,
           birthday: payload.birthday,
-          age: payload.age,
           gender: payload.gender,
           birthday_visible: payload.birthday_visible
         }
@@ -1238,7 +1271,18 @@ async function createNewsPost(event) {
       throw new Error("NEWSのタイトル、本文、画像URL、外部URLのいずれかを入力してください。");
     }
     if (isDemoAdmin()) {
-      state = { busy: false, message: "デモ管理ではNEWS作成UIの確認だけ行いました。", error: "" };
+      saveLocalNewsPost({
+        id: `local-news-${Date.now()}`,
+        title,
+        body,
+        image_url: imageUrl || null,
+        external_url: url || null,
+        source_label: sourceLabel(url),
+        is_published: true,
+        created_at: new Date().toISOString(),
+        published_at: new Date().toISOString()
+      });
+      state = { busy: false, message: "NEWSを公開しました。", error: "" };
       render();
       return;
     }
@@ -1274,6 +1318,12 @@ function handleAdminUserSearch(event) {
 
 async function deleteNewsPost(newsId) {
   try {
+    if (String(newsId).startsWith("local-news-")) {
+      localStorage.setItem(NEWS_LOCAL_STORAGE, JSON.stringify(localNewsPosts().filter((post) => post.id !== newsId)));
+      state = { busy: false, message: "NEWSを削除しました。", error: "" };
+      render();
+      return;
+    }
     if (isDemoAdmin()) {
       state = { busy: false, message: "デモ管理ではNEWS削除の操作確認だけ行いました。", error: "" };
       render();
@@ -1383,7 +1433,6 @@ function viewRegister() {
           <label>メールアドレス<input name="email" type="email" required autocomplete="email" placeholder="you@example.com" /></label>
           <label>パスワード<input name="password" type="password" minlength="8" required autocomplete="new-password" /></label>
           <label>誕生日<input name="birthday" type="date" required /></label>
-          <label>年齢<input name="age" type="number" min="0" max="120" required inputmode="numeric" /></label>
           <label>性別<select name="gender" required><option>男性</option><option>女性</option><option>その他</option><option selected>回答しない</option></select></label>
           <label class="check"><input name="birthday_visible" type="checkbox" checked /> 会員カードに誕生日を表示</label>
           <p class="form-note">本名、性別、年齢は会員カード表面には表示されません。スタッフ管理画面でのみ確認します。</p>
@@ -1410,7 +1459,6 @@ async function viewCompleteProfile() {
           <label>ユーザーネーム<input name="username" required autocomplete="nickname" value="${pending.username || ""}" /></label>
           <label>メールアドレス<input value="${current.user.email || ""}" disabled /></label>
           <label>誕生日<input name="birthday" type="date" required value="${pending.birthday || ""}" /></label>
-          <label>年齢<input name="age" type="number" min="0" max="120" required inputmode="numeric" value="${pending.age ?? ""}" /></label>
           <label>性別<select name="gender" required>${["男性", "女性", "その他", "回答しない"].map((gender) => `<option ${gender === (pending.gender || "回答しない") ? "selected" : ""}>${gender}</option>`).join("")}</select></label>
           <label class="check"><input name="birthday_visible" type="checkbox" ${pending.birthday_visible === false ? "" : "checked"} /> 会員カードに誕生日を表示</label>
           <p class="form-note">保存すると public.users に会員情報が作られ、スタッフ管理アプリの登録者一覧に反映されます。</p>
@@ -1653,12 +1701,14 @@ function viewSettings() {
 
 function viewContact() {
   return layout(html`
-    <section class="page-head"><h1>コンタクト</h1><p>店舗への連絡先とアクセス情報です。</p></section>
-    <section class="contact-grid">
-      <a class="contact-card" href="tel:${contactInfo.phone}"><span>電話番号</span><strong>${contactInfo.phone}</strong></a>
-      <a class="contact-card" href="mailto:${contactInfo.email}"><span>メール</span><strong>${contactInfo.email}</strong></a>
-      <a class="contact-card" href="https://maps.google.com/?q=${encodeURIComponent(contactInfo.address)}" target="_blank" rel="noopener noreferrer"><span>住所</span><strong>${contactInfo.address}</strong></a>
-      <a class="contact-card" href="${contactInfo.hp}" target="_blank" rel="noopener noreferrer"><span>HP</span><strong>${contactInfo.hp}</strong></a>
+    <section class="contact-page">
+      <section class="page-head"><h1>コンタクト</h1><p>店舗への連絡先とアクセス情報です。</p></section>
+      <section class="contact-grid">
+        <a class="contact-card" href="tel:${contactInfo.phone}"><span>電話番号</span><strong>${contactInfo.phone}</strong></a>
+        <a class="contact-card" href="mailto:${contactInfo.email}"><span>メール</span><strong>${contactInfo.email}</strong></a>
+        <a class="contact-card" href="https://maps.google.com/?q=${encodeURIComponent(contactInfo.address)}" target="_blank" rel="noopener noreferrer"><span>住所</span><strong>${contactInfo.address}</strong></a>
+        <a class="contact-card" href="${contactInfo.hp}" target="_blank" rel="noopener noreferrer"><span>HP</span><strong>${contactInfo.hp}</strong></a>
+      </section>
     </section>
   `);
 }
@@ -1675,7 +1725,10 @@ async function markNewsRead(userId, posts = []) {
   localStorage.setItem(newsReadStorageKey(userId), JSON.stringify(ids));
   state.unreadNewsCount = 0;
   if (!supabase || !ids.length) return;
-  const rows = ids.map((news_post_id) => ({ user_id: userId, news_post_id }));
+  const rows = ids
+    .filter((id) => !String(id).startsWith("local-news-"))
+    .map((news_post_id) => ({ user_id: userId, news_post_id }));
+  if (!rows.length) return;
   const { error } = await supabase.from("news_reads").upsert(rows, { onConflict: "user_id,news_post_id" });
   if (error && !isMissingDbObject(error)) throw error;
 }
@@ -1685,12 +1738,16 @@ function newsPostCard(post, admin = false) {
   const media = post.image_url ? `<img class="news-image" src="${post.image_url}" alt="${post.title}" />` : "";
   const body = post.body ? `<p>${post.body}</p>` : "";
   const source = post.source_label || sourceLabel(post.external_url || "");
+  const host = post.external_url ? sourceLabel(post.external_url) : "";
+  const preview = post.external_url
+    ? `<div class="news-link-preview"><span>${host}</span><strong>${post.title}</strong><small>${post.external_url}</small></div>`
+    : "";
   const content = [
     `<div class="news-author"><span class="news-avatar">呪</span><div><strong>cafeジュジュ</strong><small>${source} / ${date}</small></div></div>`,
     `<h2>${post.title}</h2>`,
     body,
     media,
-    post.external_url ? `<span class="news-link-preview">${post.external_url}</span>` : ""
+    preview
   ].join("");
   return html`
     <article class="news-post ${post.external_url ? "is-link" : ""}">

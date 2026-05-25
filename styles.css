@@ -19,21 +19,33 @@
 body {
   margin: 0;
   min-height: 100vh;
-  background:
-    radial-gradient(circle at 12% 14%, rgba(255, 226, 150, 0.16), transparent 28%),
-    radial-gradient(circle at 84% 8%, rgba(99, 45, 22, 0.22), transparent 30%),
-    repeating-linear-gradient(8deg, rgba(255,255,255,0.026) 0 1px, transparent 1px 9px),
-    linear-gradient(135deg, #25170d, #7a5831 42%, #1a1009);
+  background: #070605;
   color: var(--ink);
   font-family: "Yu Gothic UI", "Hiragino Sans", system-ui, sans-serif;
   letter-spacing: 0;
   overflow-x: hidden;
+  isolation: isolate;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: -18px;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    linear-gradient(135deg, rgba(6,5,4,0.78), rgba(22,12,7,0.9)),
+    url("assets/backgrounds/app-bg.jpg") center / cover no-repeat;
+  filter: blur(4px) saturate(0.8) brightness(0.62);
+  transform: scale(1.02);
+  opacity: 0.62;
 }
 
 body::after {
   content: "";
   position: fixed;
   inset: 0;
+  z-index: -1;
   pointer-events: none;
   opacity: 0.2;
   background:
@@ -42,6 +54,18 @@ body::after {
     radial-gradient(circle at 45% 80%, rgba(255,255,255,0.12), transparent 1px);
   background-size: 90px 90px, 130px 130px, 56px 56px;
   mix-blend-mode: overlay;
+}
+
+body:has(.card-stage)::before {
+  opacity: 0;
+}
+
+body:has(.contact-page)::before {
+  background:
+    linear-gradient(135deg, rgba(6,5,4,0.58), rgba(22,12,7,0.76)),
+    url("assets/backgrounds/contact-bg.jpg") center / cover no-repeat;
+  filter: blur(3px) saturate(0.82) brightness(0.74);
+  opacity: 0.74;
 }
 
 button, input, select, textarea {
@@ -148,6 +172,11 @@ nav button {
   font-size: 12px;
   font-weight: 800;
   box-shadow: 0 0 0 2px #090807;
+}
+
+.topbar, .user-main, .admin-main, .auth-page {
+  position: relative;
+  z-index: 1;
 }
 
 .user-main, .admin-main {
@@ -328,6 +357,20 @@ form {
     radial-gradient(circle at 50% 20%, rgba(255, 237, 185, 0.08), transparent 28%),
     repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.026) 0 1px, transparent 1px 14px),
     linear-gradient(145deg, #15120e, #050505 62%, #120d08);
+}
+
+.back::after {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(135deg, rgba(5,5,5,0.52), rgba(8,6,4,0.76)),
+    url("assets/backgrounds/member-card-back.jpg") center / cover no-repeat;
+  filter: blur(5px) saturate(0.78) brightness(0.66);
+  opacity: 0.3;
+  transform: scale(1.02);
 }
 
 .member-card::before {
@@ -698,9 +741,11 @@ form {
   pointer-events: none;
   opacity: 0.11;
   background:
+    repeating-linear-gradient(90deg, transparent 0 86px, rgba(255,255,255,0.08) 87px, transparent 88px 160px),
     radial-gradient(circle at 20% 30%, rgba(255,255,255,0.16), transparent 1px),
-    radial-gradient(circle at 80% 60%, rgba(0,0,0,0.4), transparent 2px);
-  background-size: 90px 90px, 130px 130px;
+    radial-gradient(circle at 80% 60%, rgba(0,0,0,0.4), transparent 2px),
+    radial-gradient(circle at 42% 72%, rgba(255,255,255,0.18), transparent 1px);
+  background-size: 100% 100%, 90px 90px, 130px 130px, 54px 54px;
   mix-blend-mode: soft-light;
   animation: filmGrain 1.8s steps(2, end) infinite;
 }
@@ -713,6 +758,7 @@ form {
   pointer-events: none;
   opacity: 0;
   background:
+    repeating-linear-gradient(90deg, transparent 0 118px, rgba(255,255,255,0.34) 119px, transparent 121px 220px),
     linear-gradient(112deg, transparent 0 44%, rgba(255,245,210,0.72) 44.18% 44.48%, transparent 44.82%),
     linear-gradient(74deg, transparent 0 62%, rgba(255,255,255,0.42) 62.08% 62.24%, transparent 62.58%),
     linear-gradient(139deg, transparent 0 31%, rgba(0,0,0,0.9) 31.12% 31.36%, transparent 31.7%);
@@ -1068,13 +1114,33 @@ form {
 }
 
 .news-link-preview {
-  display: block;
-  padding: 10px 12px;
+  display: grid;
+  gap: 5px;
+  padding: 12px 14px;
   border: 1px solid rgba(225, 199, 131, 0.24);
   border-radius: 7px;
   color: var(--gold-2);
   overflow-wrap: anywhere;
-  background: rgba(0,0,0,0.2);
+  background:
+    linear-gradient(135deg, rgba(225,199,131,0.11), rgba(0,0,0,0.18)),
+    rgba(0,0,0,0.2);
+}
+
+.news-link-preview span {
+  color: var(--gold-2);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.news-link-preview strong {
+  color: var(--ink);
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+.news-link-preview small {
+  color: var(--muted);
+  line-height: 1.4;
 }
 
 .news-post > button {
