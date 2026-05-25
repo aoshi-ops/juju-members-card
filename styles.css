@@ -406,7 +406,7 @@ form {
   -webkit-backface-visibility: hidden;
   transform-style: preserve-3d;
   border-radius: 8px;
-  border: 1px solid rgba(80, 48, 20, 0.76);
+  border: 1px solid rgba(86, 56, 30, 0.72);
   padding: clamp(18px, 3.4vw, 38px);
   overflow: hidden;
   box-shadow: 0 34px 90px rgba(0, 0, 0, 0.45), inset 0 0 90px rgba(50, 25, 9, 0.34);
@@ -415,18 +415,17 @@ form {
 .front {
   transform: rotateY(0deg);
   background:
+    linear-gradient(135deg, rgba(22, 14, 6, 0.22), rgba(12, 8, 4, 0.54)),
     radial-gradient(circle at 16% 12%, rgba(255, 237, 185, 0.1), transparent 30%),
-    radial-gradient(circle at 84% 86%, rgba(82, 54, 24, 0.16), transparent 34%),
-    repeating-linear-gradient(92deg, rgba(255, 255, 255, 0.026) 0 1px, transparent 1px 14px),
-    linear-gradient(135deg, #171410, #050505 58%, #14100b);
+    url("assets/card/card-front.jpg") center / cover no-repeat;
 }
 
 .back {
   transform: rotateY(180deg);
   background:
+    linear-gradient(145deg, rgba(8, 5, 3, 0.32), rgba(5, 4, 3, 0.62)),
     radial-gradient(circle at 50% 20%, rgba(255, 237, 185, 0.08), transparent 28%),
-    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.026) 0 1px, transparent 1px 14px),
-    linear-gradient(145deg, #15120e, #050505 62%, #120d08);
+    url("assets/card/card-back.jpg") center / cover no-repeat;
 }
 
 .member-card::before {
@@ -491,25 +490,43 @@ form {
 }
 
 .avatar {
+  position: relative;
   display: grid;
   place-items: center;
   width: clamp(76px, 12vw, 132px);
   aspect-ratio: 1;
   border-radius: 50%;
-  border: 2px solid var(--gold);
-  background: rgba(198, 168, 93, 0.08);
+  border: 0;
+  background: rgba(0, 0, 0, 0.72);
   color: var(--gold-2);
   font-size: clamp(32px, 5vw, 60px);
   font-weight: 800;
   cursor: pointer;
-  overflow: hidden;
+  overflow: visible;
   flex: 0 0 auto;
 }
 
 .avatar img {
-  width: 100%;
-  height: 100%;
+  position: relative;
+  z-index: 1;
+  width: 82%;
+  height: 82%;
   object-fit: cover;
+  border-radius: 50%;
+}
+
+.avatar span {
+  position: relative;
+  z-index: 1;
+}
+
+.avatar::after {
+  content: "";
+  position: absolute;
+  inset: -10%;
+  z-index: 2;
+  pointer-events: none;
+  background: url("assets/card/avatar-frame.jpg") center / contain no-repeat;
 }
 
 .avatar input {
@@ -536,31 +553,42 @@ form {
   height: clamp(76px, 12vw, 122px);
   min-height: 0;
   padding: 0;
-  border: 1px solid rgba(225, 199, 131, 0.48);
-  border-left: 3px solid var(--gold);
-  border-radius: 16px 7px 16px 7px;
-  background:
-    linear-gradient(135deg, rgba(198, 168, 93, 0.18), rgba(198, 168, 93, 0.05)),
-    rgba(18, 18, 18, 0.82);
+  border: 0;
+  border-radius: 15px;
+  background: rgba(0, 0, 0, 0.76);
   text-align: left;
-  overflow: hidden;
+  overflow: visible;
   cursor: pointer;
 }
 
 .favorite-relic-badge img {
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
+  inset: 12%;
+  z-index: 1;
+  width: 76%;
+  height: 72%;
   object-fit: cover;
+  border-radius: 12px;
   filter: contrast(1.08) saturate(0.85) brightness(0.82);
+}
+
+.favorite-relic-badge::before {
+  content: "";
+  position: absolute;
+  inset: -9%;
+  z-index: 3;
+  pointer-events: none;
+  background: url("assets/card/relic-frame.jpg") center / contain no-repeat;
 }
 
 .favorite-relic-badge::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.78));
+  z-index: 2;
+  inset: 10%;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(0,0,0,0.02), rgba(0,0,0,0.74));
 }
 
 .relic-placeholder {
@@ -575,9 +603,9 @@ form {
 
 .favorite-relic-badge strong {
   position: relative;
-  z-index: 1;
+  z-index: 4;
   max-width: 100%;
-  padding: 7px 8px 8px;
+  padding: 7px 11px 9px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: normal;
@@ -599,6 +627,7 @@ form {
   border: 1px solid rgba(225, 199, 131, 0.5);
   border-radius: 999px;
   background: linear-gradient(90deg, rgba(198, 168, 93, 0.2), rgba(198, 168, 93, 0.06));
+  min-width: 0;
 }
 
 .rank-badge span {
@@ -609,7 +638,11 @@ form {
 
 .rank-badge strong {
   color: var(--gold-2);
-  font-size: clamp(16px, 2vw, 24px);
+  min-width: 0;
+  max-width: 72%;
+  overflow-wrap: anywhere;
+  text-align: right;
+  font-size: clamp(15px, 1.85vw, 23px);
   font-family: "JujuIgyou", "JujuHinaMincho", serif;
 }
 
@@ -617,7 +650,7 @@ form {
   position: absolute;
   right: clamp(18px, 4vw, 34px);
   bottom: clamp(18px, 4vw, 32px);
-  width: clamp(86px, 14vw, 124px);
+  width: clamp(78px, 12vw, 116px);
   aspect-ratio: 1;
   border: 2px solid rgba(190, 43, 43, 0.82);
   border-radius: 50%;
@@ -667,7 +700,9 @@ form {
   display: grid;
   place-items: center;
   color: #d74949;
-  font: 800 54px/1 "Yu Mincho", serif;
+  font-weight: 800;
+  font-size: 54px;
+  line-height: 1;
   transform: rotate(-10deg);
 }
 
@@ -727,13 +762,25 @@ form {
   position: relative;
   overflow: hidden;
   min-height: 72px;
-  border: 1px dashed #6f6041;
-  border-radius: 7px;
-  padding: 10px;
+  border: 0;
+  border-radius: 12px;
+  padding: 14px 20px;
   display: flex;
   justify-content: space-between;
+  align-items: center;
   gap: 8px;
   color: #8f8778;
+  background: rgba(4, 4, 5, 0.68);
+}
+
+.stamp::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: url("assets/card/sound-frame.jpg") center / 100% 100% no-repeat;
+  opacity: 0.95;
 }
 
 .stamp.has-image::before {
@@ -754,11 +801,10 @@ form {
 
 .stamp > * {
   position: relative;
-  z-index: 1;
+  z-index: 2;
 }
 
 .stamp.done {
-  border-style: solid;
   color: var(--ink);
   background: rgba(198, 168, 93, 0.12);
 }

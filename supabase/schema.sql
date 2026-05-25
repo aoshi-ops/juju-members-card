@@ -250,7 +250,7 @@ begin
 end;
 $$;
 
-grant usage on schema public to authenticated;
+grant usage on schema public to anon, authenticated;
 grant usage on sequence public.member_number_seq to authenticated;
 grant select, insert, update, delete on
   public.app_profiles,
@@ -271,6 +271,7 @@ grant select, insert, update, delete on
   public.news_reads
 to authenticated;
 
+grant select on public.news_posts to anon;
 grant execute on function public.create_staff_news_post(text, text, text, text, text, text, text) to anon, authenticated;
 
 create or replace function public.is_staff()

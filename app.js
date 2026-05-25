@@ -257,6 +257,13 @@ function clearPendingRegistration() {
 function appErrorMessage(error) {
   const message = String(error?.message || error || "");
   if (
+    message.includes("create_staff_news_post") ||
+    message.includes("Could not find the function") ||
+    (message.includes("function") && message.includes("does not exist"))
+  ) {
+    return "NEWS投稿用のSupabase関数がまだ反映されていません。最新の supabase/schema.sql をSQL Editorで再実行してください。";
+  }
+  if (
     message.includes("public.users") ||
     message.includes("schema cache") ||
     message.includes("Could not find the table")
@@ -330,7 +337,11 @@ function saveLocalNewsPost(post) {
 function mergeNewsPosts(remotePosts = []) {
   const map = new Map();
   [...localNewsPosts(), ...remotePosts].forEach((post) => {
-    if (post?.id) map.set(post.id, post);
+    if (!post?.id) return;
+    const key = post.external_url
+      ? `url:${post.external_url}`
+      : `article:${post.title || ""}:${post.body || ""}:${post.image_url || ""}`;
+    map.set(key || post.id, post);
   });
   return [...map.values()].sort((a, b) => new Date(b.published_at || b.created_at || 0) - new Date(a.published_at || a.created_at || 0));
 }
@@ -1300,6 +1311,7 @@ async function createNewsPost(event) {
           p_source_label: sourceLabel(url)
         });
         if (error) throw error;
+        saveLocalNewsPost(post);
       } else {
         saveLocalNewsPost(post);
       }
@@ -1537,7 +1549,7 @@ async function viewMemberCard() {
               </button>
             </div>
           </div>
-          <div class="rank-badge"><span>称号</span><strong>ランク${rank.n} ${rank.name}</strong></div>
+          <div class="rank-badge"><span>称号 ${rank.n}</span><strong>${rank.name}</strong></div>
           ${purchasePermission.allowed ? `<button type="button" class="purchase-seal ${purchasePermission.manual ? "manual" : ""}" data-action="open-purchase-seal" data-no-flip><span>呪物購入資格</span><strong>許</strong></button>` : ""}
           <div class="point-strip">
             <span>現在ポイント</span>
@@ -1545,7 +1557,7 @@ async function viewMemberCard() {
           </div>
           <div class="mini-facts">
             <span>誕生日 ${birthday}</span>
-            <span>${next ? `次ランクまで ${Math.max(0, next.min - points).toFixed(1)}pt` : "最高ランク"}</span>
+            <span>${next ? `次のランクまで ${Math.max(0, next.min - points).toFixed(1)}pt` : "最高ランク"}</span>
           </div>
           <div class="profile-controls">
             <label class="check"><input type="checkbox" data-action="birthday" ${data.user.birthday_visible ? "checked" : ""} /> 誕生日表示</label>
