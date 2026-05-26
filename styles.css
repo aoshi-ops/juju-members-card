@@ -39,6 +39,11 @@ body {
   isolation: isolate;
 }
 
+body:has(.admin-main),
+body:has([data-form="admin-login"]) {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", sans-serif;
+}
+
 body::before {
   content: "";
   position: fixed;
@@ -69,7 +74,11 @@ body::after {
 }
 
 body:has(.card-stage)::before {
-  opacity: 0;
+  background:
+    linear-gradient(135deg, rgba(6,5,4,0.38), rgba(22,12,7,0.48)),
+    url("assets/backgrounds/member-card-back.jpg") center / cover no-repeat;
+  filter: blur(5px) saturate(0.82) brightness(0.76);
+  opacity: 0.78;
 }
 
 body:has(.contact-page)::before {
@@ -353,10 +362,10 @@ form {
   z-index: -2;
   pointer-events: none;
   background:
-    linear-gradient(135deg, rgba(3,3,3,0.55), rgba(7,5,4,0.86)),
+    linear-gradient(135deg, rgba(3,3,3,0.24), rgba(7,5,4,0.46)),
     url("assets/backgrounds/member-card-back.jpg") center / cover no-repeat;
-  filter: blur(4px) saturate(0.74) brightness(0.5);
-  transform: scale(1.02);
+  filter: blur(5px) saturate(0.82) brightness(0.74);
+  transform: scale(1.035);
 }
 
 .card-stage::after {
@@ -366,8 +375,8 @@ form {
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(circle at 50% 42%, transparent 0 32%, rgba(0,0,0,0.58) 72%),
-    linear-gradient(135deg, rgba(0,0,0,0.42), rgba(0,0,0,0.84));
+    radial-gradient(circle at 50% 42%, transparent 0 42%, rgba(0,0,0,0.28) 78%),
+    linear-gradient(135deg, rgba(0,0,0,0.12), rgba(0,0,0,0.42));
 }
 
 .card-stage .background-noise {
@@ -518,8 +527,8 @@ form {
 .avatar img {
   position: relative;
   z-index: 1;
-  width: 72%;
-  height: 72%;
+  width: 88%;
+  height: 88%;
   object-fit: cover;
   border-radius: 50%;
 }
@@ -578,10 +587,10 @@ form {
 
 .favorite-relic-badge img {
   position: absolute;
-  inset: 14% 18% 22%;
+  inset: 7% 8% 12%;
   z-index: 1;
-  width: 64%;
-  height: 64%;
+  width: 84%;
+  height: 81%;
   object-fit: cover;
   border-radius: 12px;
   filter: contrast(1.08) saturate(0.85) brightness(0.82);
@@ -599,16 +608,15 @@ form {
 .favorite-relic-badge::after {
   content: "";
   position: absolute;
-  inset: 0;
   z-index: 2;
-  inset: 13% 17% 22%;
+  inset: 7% 8% 12%;
   border-radius: 12px;
   background: linear-gradient(180deg, rgba(0,0,0,0.02), rgba(0,0,0,0.74));
 }
 
 .relic-placeholder {
   position: absolute;
-  inset: 14% 18% 22%;
+  inset: 7% 8% 12%;
   z-index: 1;
   display: grid;
   place-items: center;

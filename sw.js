@@ -1,4 +1,4 @@
-const CACHE = "juju-members-v0.2.37";
+const CACHE = "juju-members-v0.2.38";
 const ASSETS = [
   "./",
   "index.html",
@@ -35,7 +35,8 @@ const ASSETS = [
   "assets/relics/ganenbutsu.jpg",
   "assets/relics/black-phone.jpg",
   "assets/relics/mother-puppet.jpg",
-  "assets/relics/horseshoe.jpg"
+  "assets/relics/horseshoe.jpg",
+  "assets/relics/ma-kun.jpg"
 ];
 
 self.addEventListener("install", (event) => {

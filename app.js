@@ -1,20 +1,20 @@
 const ranks = [
-  { n: 1, name: "迷い人", min: 1, max: 5 },
-  { n: 2, name: "常連の気配", min: 5.5, max: 10.5 },
-  { n: 3, name: "好事家", min: 11, max: 16.5 },
-  { n: 4, name: "呪物愛好家", min: 17, max: 23.5 },
-  { n: 5, name: "呪物収集家", min: 24, max: 38.5 },
-  { n: 6, name: "呪物倉庫付き学芸員", min: 39, max: 68.5 },
-  { n: 7, name: "呪物博士", min: 69, max: null }
+  { n: 1, name: "\u8ff7\u3044\u4eba", min: 1, max: 5 },
+  { n: 2, name: "\u5e38\u9023\u306e\u6c17\u914d", min: 5.5, max: 10.5 },
+  { n: 3, name: "\u597d\u4e8b\u5bb6", min: 11, max: 16.5 },
+  { n: 4, name: "\u546a\u7269\u611b\u597d\u5bb6", min: 17, max: 23.5 },
+  { n: 5, name: "\u546a\u7269\u53ce\u96c6\u5bb6", min: 24, max: 38.5 },
+  { n: 6, name: "\u546a\u7269\u5009\u5eab\u4ed8\u304d\u5b66\u82b8\u54e1", min: 39, max: 68.5 },
+  { n: 7, name: "\u546a\u7269\u535a\u58eb", min: 69, max: null }
 ];
 
 const demoSoundHorrors = [
-  { id: "demo-1", title: "腹話術人形まぁくん" },
-  { id: "demo-2", title: "岩塩仏" },
-  { id: "demo-3", title: "お母さん役の操り人形" },
-  { id: "demo-4", title: "遺棄された黒電話" },
-  { id: "demo-5", title: "病呑守り" },
-  { id: "demo-6", title: "坑内馬の蹄鉄" }
+  { id: "demo-1", title: "\u8179\u8a71\u8853\u4eba\u5f62\u307e\u3041\u304f\u3093" },
+  { id: "demo-2", title: "\u5ca9\u5869\u4ecf" },
+  { id: "demo-3", title: "\u304a\u6bcd\u3055\u3093\u5f79\u306e\u64cd\u308a\u4eba\u5f62" },
+  { id: "demo-4", title: "\u907a\u68c4\u3055\u308c\u305f\u9ed2\u96fb\u8a71" },
+  { id: "demo-5", title: "\u75c5\u5451\u5b88\u308a" },
+  { id: "demo-6", title: "\u5751\u5185\u99ac\u306e\u8e44\u9244" }
 ];
 const soundHorrorTitles = demoSoundHorrors.map((horror) => horror.title);
 const currentSoundHorrors = (horrors = []) =>
@@ -22,28 +22,32 @@ const currentSoundHorrors = (horrors = []) =>
     .map((title) => horrors.find((horror) => horror.title === title) || demoSoundHorrors.find((horror) => horror.title === title))
     .filter(Boolean);
 const specialExperiences = [
-  { code: "sange-box", title: "さんげの箱", point: 3 }
+  { code: "sange-box", title: "\u3055\u3093\u3052\u306e\u7bb1", point: 3 }
 ];
 const contactInfo = {
   phone: "03-5913-8428",
   email: "obakendesk@gmail.com",
-  address: "〒168-0062 東京都杉並区方南2-4-27",
+  address: "\u3012168-0062 \u6771\u4eac\u90fd\u6749\u4e26\u533a\u65b9\u53572-4-27",
   hp: "https://obaken-event.wixsite.com/cafe-joujou"
 };
 
 const welcomeCoupon = {
-  title: "会員登録キャンペーンクーポン",
-  description: "サウンドホラー一回無料（￥1,000作品のみ対象）"
+  title: "\u4f1a\u54e1\u767b\u9332\u30ad\u30e3\u30f3\u30da\u30fc\u30f3\u30af\u30fc\u30dd\u30f3",
+  description: "\u30b5\u30a6\u30f3\u30c9\u30db\u30e9\u30fc\u4e00\u56de\u7121\u6599\uff08\uffe51,000\u4f5c\u54c1\u306e\u307f\u5bfe\u8c61\uff09"
 };
 const relicCatalog = [
-  { id: "local-byoudon-mamori", name: "病呑守り", image: "assets/relics/byoudon-mamori.jpg" },
-  { id: "local-sange-box", name: "さんげの箱", image: "assets/relics/sange-box.jpg" },
-  { id: "local-ganenbutsu", name: "岩塩仏", image: "assets/relics/ganenbutsu.jpg" },
-  { id: "local-black-phone", name: "遺棄された黒電話", image: "assets/relics/black-phone.jpg" },
-  { id: "local-mother-puppet", name: "お母さん役の操り人形", image: "assets/relics/mother-puppet.jpg" },
-  { id: "local-horseshoe", name: "坑内馬の蹄鉄", image: "assets/relics/horseshoe.jpg" }
+  { id: "local-byoudon-mamori", name: "\u75c5\u5451\u5b88\u308a", image: "assets/relics/byoudon-mamori.jpg" },
+  { id: "local-sange-box", name: "\u3055\u3093\u3052\u306e\u7bb1", image: "assets/relics/sange-box.jpg" },
+  { id: "local-ganenbutsu", name: "\u5ca9\u5869\u4ecf", image: "assets/relics/ganenbutsu.jpg" },
+  { id: "local-black-phone", name: "\u907a\u68c4\u3055\u308c\u305f\u9ed2\u96fb\u8a71", image: "assets/relics/black-phone.jpg" },
+  { id: "local-mother-puppet", name: "\u304a\u6bcd\u3055\u3093\u5f79\u306e\u64cd\u308a\u4eba\u5f62", image: "assets/relics/mother-puppet.jpg" },
+  { id: "local-horseshoe", name: "\u5751\u5185\u99ac\u306e\u8e44\u9244", image: "assets/relics/horseshoe.jpg" },
+  { id: "local-ma-kun", name: "\u8179\u8a71\u8853\u4eba\u5f62\u307e\u3041\u304f\u3093", image: "assets/relics/ma-kun.jpg" }
 ];
-const relicImageByHorrorTitle = Object.fromEntries(relicCatalog.map((relic) => [relic.name, relic.image]));
+const relicImageByHorrorTitle = Object.fromEntries([
+  ...relicCatalog.map((relic) => [relic.name, relic.image]),
+  ["\u8179\u8a71\u8853\u4eba\u5f62\u307e\u3041\u304f\u3093", "assets/relics/ma-kun.jpg"]
+]);
 
 const demo = {
   profile: { role: "user" },
@@ -51,13 +55,13 @@ const demo = {
     id: "demo-user",
     auth_user_id: "demo-auth",
     member_number: "JUJU-000001",
-    real_name: "山田 太郎",
+    real_name: "\u5c71\u7530 \u592a\u90ce",
     username: "juju_guest",
     email: "demo@example.com",
     birthday: "1996-08-13",
     birthday_visible: true,
     age: 29,
-    gender: "回答しない",
+    gender: "\u56de\u7b54\u3057\u306a\u3044",
     favorite_relic_id: null
   },
   visits: [
@@ -113,6 +117,7 @@ const iconStorageKey = (userId) => `JUJU_ICON_${userId}`;
 const relicStorageKey = (userId) => `JUJU_FAVORITE_RELIC_${userId}`;
 const couponEnsuredKey = (userId) => `JUJU_COUPON_READY_${userId}`;
 const newsReadStorageKey = (userId) => `JUJU_NEWS_READ_${userId}`;
+const QR_CAMERA_ALLOWED_STORAGE = "JUJU_QR_CAMERA_ALLOWED";
 const NEWS_LOCAL_STORAGE = "JUJU_LOCAL_NEWS_POSTS";
 const cfg = () => ({
   url: localStorage.getItem("SUPABASE_URL") || DEFAULT_SUPABASE_URL,
@@ -158,6 +163,7 @@ const publicUrl = (path) => `${BASE_PATH}${path}`;
 const absoluteUrl = (path) => new URL(publicUrl(path), location.origin).href;
 const navigate = (path) => {
   stopQrScanner();
+  state = { ...state, message: "", error: "" };
   history.pushState({}, "", publicUrl(path));
   render();
 };
@@ -521,7 +527,7 @@ async function loadAdminData(userId = null, options = {}) {
   if (isDemoAdmin()) {
     const data = demoAdminData();
     if (options.includeNews === true && supabase) {
-      const newsPosts = await optionalQuery(supabase.from("news_posts").select("*").order("published_at", { ascending: false }).limit(100));
+      const newsPosts = await optionalQuery(supabase.from("news_posts").select("*").eq("is_published", true).order("published_at", { ascending: false }).limit(100));
       data.newsPosts = mergeNewsPosts(newsPosts.data || []);
     } else if (options.includeNews === true) {
       data.newsPosts = mergeNewsPosts(data.newsPosts || []);
@@ -563,9 +569,9 @@ async function loadAdminData(userId = null, options = {}) {
     userId ? supabase.from("visits").select("*").eq("user_id", userId).order("visited_at", { ascending: false }) : supabase.from("visits").select("*").order("visited_at", { ascending: false }).limit(200),
     userId ? supabase.from("sound_horror_listens").select("*, sound_horrors(title)").eq("user_id", userId).order("listened_at", { ascending: false }) : supabase.from("sound_horror_listens").select("*").order("listened_at", { ascending: false }).limit(200),
     userId ? supabase.from("point_events").select("*").eq("user_id", userId).order("created_at", { ascending: false }) : supabase.from("point_events").select("*").order("created_at", { ascending: false }).limit(200),
-    userId ? supabase.from("user_coupons").select("*, coupons(*)").eq("user_id", userId) : supabase.from("coupons").select("*").order("created_at", { ascending: false }),
+    userId ? supabase.from("user_coupons").select("*, coupons(*)").eq("user_id", userId) : supabase.from("coupons").select("*").eq("is_active", true).order("created_at", { ascending: false }),
     optionalQuery(userId ? supabase.from("user_purchase_permissions").select("*").eq("user_id", userId).eq("is_active", true) : supabase.from("user_purchase_permissions").select("*").eq("is_active", true)),
-    includeNews ? optionalQuery(supabase.from("news_posts").select("*").order("published_at", { ascending: false }).limit(100)) : Promise.resolve({ data: [] })
+    includeNews ? optionalQuery(supabase.from("news_posts").select("*").eq("is_published", true).order("published_at", { ascending: false }).limit(100)) : Promise.resolve({ data: [] })
   ]);
 
   for (const result of [users, visits, listens, points, coupons, purchasePermissions, newsPosts]) {
@@ -925,6 +931,7 @@ async function startQrScanner() {
     });
     video.srcObject = qrStream;
     await video.play();
+    localStorage.setItem(QR_CAMERA_ALLOWED_STORAGE, "true");
     qrScanning = true;
     const detector = "BarcodeDetector" in window ? new BarcodeDetector({ formats: ["qr_code"] }) : null;
     let canvas = null;
@@ -1241,6 +1248,23 @@ async function deleteGrantedCoupon(userCouponId) {
   render();
 }
 
+async function deleteCreatedCoupon(couponId) {
+  try {
+    if (isDemoAdmin()) {
+      state = { busy: false, message: "作成済みクーポンの削除操作を確認しました。", error: "" };
+      render();
+      return;
+    }
+    if (!supabase) throw new Error("Supabase接続が必要です。");
+    const { error } = await supabase.from("coupons").update({ is_active: false }).eq("id", couponId);
+    if (error) throw error;
+    state = { busy: false, message: "作成済みクーポンを削除しました。付与済み履歴は残ります。", error: "" };
+  } catch (error) {
+    state = { busy: false, message: "", error: appErrorMessage(error) };
+  }
+  render();
+}
+
 async function grantPurchasePermission(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
@@ -1328,6 +1352,23 @@ function normalizeExternalUrl(value) {
   return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
 }
 
+function readImageFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    if (!file || !file.size) {
+      resolve("");
+      return;
+    }
+    if (!file.type?.startsWith("image/")) {
+      reject(new Error("画像ファイルを選択してください。"));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("画像を読み込めませんでした。"));
+    reader.readAsDataURL(file);
+  });
+}
+
 async function createNewsPost(formElement, submitter = null) {
   if (!formElement?.reportValidity?.()) return;
   if (submitter) submitter.disabled = true;
@@ -1337,7 +1378,8 @@ async function createNewsPost(formElement, submitter = null) {
   const mode = String(form.get("mode") || "article");
   const url = normalizeExternalUrl(form.get("url"));
   const body = String(form.get("body") || "").trim();
-  const imageUrl = String(form.get("image_url") || "").trim();
+  const imageFileUrl = await readImageFileAsDataUrl(form.get("image_file"));
+  const imageUrl = imageFileUrl || String(form.get("image_url") || "").trim();
   const titleInput = String(form.get("title") || "").trim();
   const title = titleInput || (mode === "url" ? sourceLabel(url) : "NEWS");
   const publishedAt = new Date().toISOString();
@@ -1465,7 +1507,8 @@ async function updateNewsPost(event) {
   const newsId = String(form.get("news_id") || "");
   const title = String(form.get("title") || "").trim();
   const body = String(form.get("body") || "").trim();
-  const imageUrl = String(form.get("image_url") || "").trim();
+  const imageFileUrl = await readImageFileAsDataUrl(form.get("image_file"));
+  const imageUrl = imageFileUrl || String(form.get("image_url") || "").trim();
   const url = normalizeExternalUrl(form.get("url"));
   const patch = {
     title,
@@ -1641,18 +1684,18 @@ async function viewMemberCard() {
   const visibleListens = data.listens.filter((listen) => currentHorrorIds.has(listen.sound_horror_id));
   const listensByHorror = countBy(visibleListens, "sound_horror_id");
   const completed = Object.keys(listensByHorror).length;
-  const birthday = data.user.birthday_visible ? monthDayDate(data.user.birthday) : "非表示";
+  const birthday = data.user.birthday_visible ? monthDayDate(data.user.birthday) : "\u975e\u8868\u793a";
   const icon = userIcon(data.user);
   const relics = relicOptions(data.relics);
   const favoriteRelic = currentFavoriteRelic(data.user, data.relics);
-  const favoriteLabel = favoriteRelic?.name || "推し呪物";
+  const favoriteLabel = favoriteRelic?.name || "\u63a8\u3057\u546a\u7269";
   const favoriteImage = favoriteRelic?.image || "";
   const purchasePermission = purchasePermissionFor(data.user, rank, data.purchasePermissions || []);
 
   return layout(html`
     <section class="member-actions">
-      <button class="primary compact-action" data-link="/scan">QRを読み取る</button>
-      <button class="compact-action save-action" type="button" data-action="save-card-image" aria-label="会員証を保存">保存</button>
+      <button class="primary compact-action" data-link="/scan">QR\u3092\u8aad\u307f\u53d6\u308b</button>
+      <button class="compact-action save-action" type="button" data-action="save-card-image" aria-label="\u4f1a\u54e1\u8a3c\u3092\u4fdd\u5b58">\u4fdd\u5b58</button>
     </section>
     <section class="card-stage">
       <div class="background-noise" aria-hidden="true"></div>
@@ -1666,8 +1709,8 @@ async function viewMemberCard() {
               <p class="member-no">${data.user.member_number}</p>
             </div>
             <div class="member-symbols" data-no-flip>
-              <label class="avatar" title="アイコンを変更" data-no-flip>
-                ${icon ? `<img src="${icon}" alt="ユーザーアイコン" />` : `<span>${(data.user.username || "J").slice(0, 1).toUpperCase()}</span>`}
+              <label class="avatar" title="\u30a2\u30a4\u30b3\u30f3\u3092\u5909\u66f4" data-no-flip>
+                ${icon ? `<img src="${icon}" alt="\u30e6\u30fc\u30b6\u30fc\u30a2\u30a4\u30b3\u30f3" />` : `<span>${(data.user.username || "J").slice(0, 1).toUpperCase()}</span>`}
                 <input type="file" accept="image/*" data-action="icon-upload" />
               </label>
               <button type="button" class="favorite-relic-badge ${favoriteImage ? "has-image" : ""}" data-action="open-relic-picker" data-relic-label="${favoriteLabel}" data-no-flip>
@@ -1676,31 +1719,31 @@ async function viewMemberCard() {
               </button>
             </div>
           </div>
-          <div class="rank-badge" data-rank-label="${rank.name}"><span>称号 ${rank.n}</span><strong>${rank.name}</strong></div>
-          ${purchasePermission.allowed ? `<button type="button" class="purchase-seal ${purchasePermission.manual ? "manual" : ""}" data-action="open-purchase-seal" data-no-flip><span>呪物購入資格</span><strong>許</strong></button>` : ""}
+          <div class="rank-badge" data-rank-label="${rank.name}"><span>\u30e9\u30f3\u30af ${rank.n}</span><strong>${rank.name}</strong></div>
+          ${purchasePermission.allowed ? `<button type="button" class="purchase-seal ${purchasePermission.manual ? "manual" : ""}" data-action="open-purchase-seal" data-no-flip><span>\u546a\u7269\u8cfc\u5165\u8cc7\u683c</span><strong>\u8a31</strong></button>` : ""}
           <div class="point-strip">
-            <span>現在ポイント</span>
+            <span>\u73fe\u5728\u30dd\u30a4\u30f3\u30c8</span>
             <strong>${points} pt</strong>
           </div>
           <div class="mini-facts">
-            <span>誕生日 ${birthday}</span>
-            <span>${next ? `次のランクまで ${Math.max(0, next.min - points).toFixed(1)}pt` : "最高ランク"}</span>
+            <span>\u8a95\u751f\u65e5 ${birthday}</span>
+            <span>${next ? `\u6b21\u306e\u30e9\u30f3\u30af\u307e\u3067 ${Math.max(0, next.min - points).toFixed(1)}pt` : "\u6700\u9ad8\u30e9\u30f3\u30af"}</span>
           </div>
           <div class="profile-controls">
-            <label class="check"><input type="checkbox" data-action="birthday" ${data.user.birthday_visible ? "checked" : ""} /> 誕生日表示</label>
+            <label class="check"><input type="checkbox" data-action="birthday" ${data.user.birthday_visible ? "checked" : ""} /> \u8a95\u751f\u65e5\u8868\u793a</label>
           </div>
         </article>
         <article class="member-card face back">
           <img class="card-brand-logo back-logo" src="assets/brand/joujou_logo_black.png" alt="" aria-hidden="true" />
           <div class="stamp-head">
             <div><p class="eyebrow">SOUND HORROR</p><h2>${completed} / ${horrors.length}</h2></div>
-            <strong>総体験 ${visibleListens.length}回</strong>
+            <strong>\u7dcf\u4f53\u9a13 ${visibleListens.length}\u56de</strong>
           </div>
           <div class="stamp-grid">
             ${horrors.map((horror) => {
               const image = relicImageByHorrorTitle[horror.title];
               const count = listensByHorror[horror.id] || 0;
-              return `<div class="stamp ${count ? "done" : ""} ${image ? "has-image" : ""}" ${image ? `style="--stamp-image:url('${image}')"` : ""}><span class="horror-title">${count ? horror.title : "？？？？？"}</span><b>${count}</b></div>`;
+              return `<div class="stamp ${count ? "done" : ""} ${image ? "has-image" : ""}" ${image ? `style="--stamp-image:url('${image}')"` : ""}><span class="horror-title">${count ? horror.title : "\uff1f\uff1f\uff1f\uff1f\uff1f"}</span><b>${count}</b></div>`;
             }).join("")}
           </div>
         </article>
@@ -1716,9 +1759,9 @@ function purchaseSealModal() {
   return html`
     <div class="modal-backdrop" data-action="close-purchase-seal">
       <section class="purchase-seal-modal" data-no-flip>
-        <div class="seal-mark">許</div>
-        <h2>呪物購入資格</h2>
-        <p>貴方は呪物を購入する資格を持っています。</p>
+        <div class="seal-mark">\u8a31</div>
+        <h2>\u546a\u7269\u8cfc\u5165\u8cc7\u683c</h2>
+        <p>\u8cb4\u65b9\u306f\u546a\u7269\u3092\u8cfc\u5165\u3059\u308b\u8cc7\u683c\u3092\u6301\u3063\u3066\u3044\u307e\u3059\u3002</p>
       </section>
     </div>
   `;
@@ -1727,16 +1770,16 @@ function purchaseSealModal() {
 function viewScan() {
   return layout(html`
     <section class="action-panel qr-scan-panel">
-      <h1>QR読み取り</h1>
-      <p>店頭QRをカメラにかざしてください。読み取ると自動で記録・取得画面へ進みます。</p>
+      <h1>QR\u8aad\u307f\u53d6\u308a</h1>
+      <p>\u5e97\u982dQR\u3092\u30ab\u30e1\u30e9\u306b\u304b\u3056\u3057\u3066\u304f\u3060\u3055\u3044\u3002\u8aad\u307f\u53d6\u308b\u3068\u81ea\u52d5\u3067\u8a18\u9332\u30fb\u53d6\u5f97\u753b\u9762\u3078\u9032\u307f\u307e\u3059\u3002</p>
       <div class="qr-camera-box">
         <video class="qr-video" playsinline muted data-role="qr-video"></video>
         <div class="qr-reticle" aria-hidden="true"></div>
       </div>
       <div class="qr-scan-actions">
-        <button class="primary" type="button" data-action="start-qr-scanner">カメラを起動する</button>
-        <button type="button" data-action="stop-qr-scanner">停止</button>
-        <button data-link="/member-card">会員証へ戻る</button>
+        <button class="primary" type="button" data-action="start-qr-scanner">\u30ab\u30e1\u30e9\u3092\u8d77\u52d5</button>
+        <button type="button" data-action="stop-qr-scanner">\u505c\u6b62</button>
+        <button data-link="/member-card">\u4f1a\u54e1\u8a3c\u3078\u623b\u308b</button>
       </div>
     </section>
   `);
@@ -1750,8 +1793,8 @@ function relicPickerModal(relics, current) {
     <div class="modal-backdrop" data-action="close-relic-picker">
       <section class="relic-modal" data-no-flip>
         <div class="modal-head">
-          <h2>推し呪物を選ぶ</h2>
-          <button type="button" data-action="close-relic-picker">閉じる</button>
+          <h2>\u63a8\u3057\u546a\u7269\u3092\u9078\u3076</h2>
+          <button type="button" data-action="close-relic-picker">\u9589\u3058\u308b</button>
         </div>
         ${relicPicker(relics, current)}
       </section>
@@ -1876,8 +1919,8 @@ function viewContact() {
 
 function viewSpecialCards() {
   return layout(html`
-    <section class="page-head"><h1>特別カード</h1><p>期間限定カードやコラボカードを追加できる土台です。</p></section>
-    <section class="empty-state">現在表示できる特別カードはありません。</section>
+    <section class="page-head"><h1>\u7279\u5225\u30ab\u30fc\u30c9</h1></section>
+    <section class="empty-state">\u73fe\u5728\u8868\u793a\u3067\u304d\u308b\u7279\u5225\u30ab\u30fc\u30c9\u306f\u3042\u308a\u307e\u305b\u3093\u3002</section>
   `);
 }
 
@@ -1905,7 +1948,7 @@ function newsPostCard(post, admin = false) {
   const source = post.source_label || sourceLabel(externalUrl);
   const preview = linkPreview(post);
   const content = [
-    `<div class="news-author"><span class="news-avatar">呪</span><div><strong>cafeジュジュ</strong><small>${escapeHtml(source)} / ${escapeHtml(date)}</small></div></div>`,
+    `<div class="news-author"><span class="news-avatar">\u546a</span><div><strong>cafe\u30b8\u30e5\u30b8\u30e5</strong><small>${escapeHtml(source)} / ${escapeHtml(date)}</small></div></div>`,
     `<h2>${escapeHtml(title)}</h2>`,
     body,
     media,
@@ -1917,17 +1960,18 @@ function newsPostCard(post, admin = false) {
       ${admin ? `
         <div class="news-admin-actions">
           <details>
-            <summary>編集</summary>
+            <summary>\u7de8\u96c6</summary>
             <form class="grid-form admin-form news-edit-form" data-form="news-edit">
               <input type="hidden" name="news_id" value="${escapeHtml(post.id)}" />
-              <label>タイトル<input name="title" value="${escapeHtml(title)}" required /></label>
-              <label>本文<textarea name="body" rows="3">${escapeHtml(bodyText)}</textarea></label>
-              <label>画像URL<input name="image_url" value="${escapeHtml(imageUrl)}" /></label>
-              <label>SNS/外部URL<input name="url" value="${escapeHtml(externalUrl)}" /></label>
-              <button class="primary" type="submit">更新</button>
+              <label>\u30bf\u30a4\u30c8\u30eb<input name="title" value="${escapeHtml(title)}" required /></label>
+              <label>\u672c\u6587<textarea name="body" rows="3">${escapeHtml(bodyText)}</textarea></label>
+              <label>\u753b\u50cfURL<input name="image_url" value="${escapeHtml(imageUrl)}" /></label>
+              <label>\u7aef\u672b\u304b\u3089\u753b\u50cf\u9078\u629e<input name="image_file" type="file" accept="image/*" /></label>
+              <label>SNS/\u5916\u90e8URL<input name="url" value="${escapeHtml(externalUrl)}" /></label>
+              <button class="primary" type="submit">\u66f4\u65b0</button>
             </form>
           </details>
-          <button type="button" data-action="delete-news" data-news-id="${escapeHtml(post.id)}" data-news-url="${escapeHtml(externalUrl)}">削除</button>
+          <button type="button" data-action="delete-news" data-news-id="${escapeHtml(post.id)}" data-news-url="${escapeHtml(externalUrl)}">\u524a\u9664</button>
         </div>
       ` : ""}
     </article>
@@ -1941,9 +1985,9 @@ async function viewNews() {
   state.unreadNewsCount = 0;
   markNewsRead(data.user.id, posts).catch((error) => { state.error = appErrorMessage(error); });
   return layout(html`
-    <section class="page-head"><h1>NEWS</h1><p>ジュジュからのお知らせを新しい順に表示します。</p></section>
+    <section class="page-head"><h1>NEWS</h1><p>\u30b8\u30e5\u30b8\u30e5\u304b\u3089\u306e\u304a\u77e5\u3089\u305b\u3092\u65b0\u3057\u3044\u9806\u306b\u8868\u793a\u3057\u307e\u3059\u3002</p></section>
     <section class="news-timeline">
-      ${posts.length ? posts.map((post) => newsPostCard(post)).join("") : `<p class="empty">現在表示できるNEWSはありません。</p>`}
+      ${posts.length ? posts.map((post) => newsPostCard(post)).join("") : `<p class="empty">\u73fe\u5728\u8868\u793a\u3067\u304d\u308bNEWS\u306f\u3042\u308a\u307e\u305b\u3093\u3002</p>`}
     </section>
   `);
 }
@@ -1953,50 +1997,51 @@ async function viewAdminNews() {
   const posts = data.newsPosts || [];
   return layout(html`
     ${adminModeBanner()}
-    <section class="page-head"><h1>NEWS管理</h1><p>イベント告知、SNS投稿、URLリンクをメンバーズカードのNEWSタイムラインへ追加します。</p></section>
+    <section class="page-head"><h1>NEWS\u7ba1\u7406</h1><p>\u30a4\u30d9\u30f3\u30c8\u544a\u77e5\u3001SNS\u6295\u7a3f\u3001URL\u30ea\u30f3\u30af\u3092\u30e1\u30f3\u30d0\u30fc\u30ba\u30ab\u30fc\u30c9\u306eNEWS\u30bf\u30a4\u30e0\u30e9\u30a4\u30f3\u3078\u8ffd\u52a0\u3057\u307e\u3059\u3002</p></section>
     <section class="news-compose-grid">
-    <form class="grid-form admin-form news-form news-compose-card" data-form="news-create">
-      <input type="hidden" name="mode" value="article" />
-      <h2>記事を作成</h2>
-      <label>タイトル<input name="title" placeholder="イベント名、投稿タイトルなど" /></label>
-      <label>本文<textarea name="body" rows="4" placeholder="告知本文。URLだけで投稿する場合は空でもOK"></textarea></label>
-      <label>画像URL<input name="image_url" placeholder="https://...jpg" /></label>
-      <label>SNS/外部URL<input name="url" placeholder="X、Instagram、TikTok、Webページなど" /></label>
-      <button class="primary" type="button" data-action="publish-news">NEWSを公開</button>
-    </form>
+      <form class="grid-form admin-form news-form news-compose-card" data-form="news-create">
+        <input type="hidden" name="mode" value="article" />
+        <h2>\u8a18\u4e8b\u3092\u4f5c\u6210</h2>
+        <label>\u30bf\u30a4\u30c8\u30eb<input name="title" placeholder="\u30a4\u30d9\u30f3\u30c8\u540d\u3001\u6295\u7a3f\u30bf\u30a4\u30c8\u30eb\u306a\u3069" /></label>
+        <label>\u672c\u6587<textarea name="body" rows="4" placeholder="\u544a\u77e5\u672c\u6587\u3002URL\u3060\u3051\u3067\u6295\u7a3f\u3059\u308b\u5834\u5408\u306f\u7a7a\u3067OK"></textarea></label>
+        <label>\u753b\u50cfURL<input name="image_url" placeholder="https://...jpg" /></label>
+        <label>\u7aef\u672b\u304b\u3089\u753b\u50cf\u9078\u629e<input name="image_file" type="file" accept="image/*" /></label>
+        <label>SNS/\u5916\u90e8URL<input name="url" placeholder="X\u3001Instagram\u3001TikTok\u3001Web\u30da\u30fc\u30b8\u306a\u3069" /></label>
+        <button class="primary" type="button" data-action="publish-news">NEWS\u3092\u516c\u958b</button>
+      </form>
       <form class="grid-form admin-form news-form news-compose-card" data-form="news-url-create">
         <input type="hidden" name="mode" value="url" />
-        <h2>URLだけで投稿</h2>
-        <label>URL<input name="url" inputmode="url" placeholder="https://x.com/... など" required /></label>
-        <p class="form-note">SNSやWebページのURLだけをNEWSに追加します。記事をタップすると元ページへ移動します。</p>
-        <button class="primary" type="button" data-action="publish-news">URLをNEWSに追加</button>
+        <h2>URL\u3060\u3051\u3067\u6295\u7a3f</h2>
+        <label>URL<input name="url" inputmode="url" placeholder="https://x.com/... \u306a\u3069" required /></label>
+        <p class="form-note">SNS\u3084Web\u30da\u30fc\u30b8\u306eURL\u3060\u3051\u3092NEWS\u306b\u8ffd\u52a0\u3057\u307e\u3059\u3002\u8a18\u4e8b\u3092\u30bf\u30c3\u30d7\u3059\u308b\u3068\u5143\u30da\u30fc\u30b8\u3078\u79fb\u52d5\u3057\u307e\u3059\u3002</p>
+        <button class="primary" type="button" data-action="publish-news">URL\u3092NEWS\u306b\u8ffd\u52a0</button>
       </form>
     </section>
     <section class="news-timeline admin-news-timeline">
-      ${posts.length ? posts.map((post) => newsPostCard(post, true)).join("") : `<p class="empty">NEWSはまだありません。</p>`}
+      ${posts.length ? posts.map((post) => newsPostCard(post, true)).join("") : `<p class="empty">NEWS\u306f\u307e\u3060\u3042\u308a\u307e\u305b\u3093\u3002</p>`}
     </section>
   `, true);
 }
 
 function adminModeBanner() {
   return isDemoAdmin()
-    ? `<div class="setup-warning"><strong>初期確認用の管理モードです</strong><p>実際に登録したユーザーを見るには、Supabase Authでログインしたアカウントの app_profiles.role を admin にしてください。</p><button type="button" data-action="exit-demo-admin">確認モードを終了して実データログインへ</button></div>`
+    ? `<div class="setup-warning"><strong>\u521d\u671f\u78ba\u8a8d\u7528\u306e\u7ba1\u7406\u30e2\u30fc\u30c9\u3067\u3059</strong><p>\u5b9f\u969b\u306b\u767b\u9332\u3057\u305f\u30e6\u30fc\u30b6\u30fc\u3092\u898b\u308b\u306b\u306f\u3001Supabase Auth\u3067\u30ed\u30b0\u30a4\u30f3\u3057\u305f\u30a2\u30ab\u30a6\u30f3\u30c8\u306e app_profiles.role \u3092 admin \u306b\u3057\u3066\u304f\u3060\u3055\u3044\u3002</p><button type="button" data-action="exit-demo-admin">\u78ba\u8a8d\u30e2\u30fc\u30c9\u3092\u7d42\u4e86\u3057\u3066\u5b9f\u30c7\u30fc\u30bf\u30ed\u30b0\u30a4\u30f3\u3078</button></div>`
     : "";
 }
 
 function visitLabel(type) {
-  return type === "second_floor" ? "二階席来店" : "一階席来店";
+  return type === "second_floor" ? "\u4e8c\u968e\u5e2d\u6765\u5e97" : "\u4e00\u968e\u5e2d\u6765\u5e97";
 }
 
 function pointLabel(type) {
   return {
-    visit_1f: "一階席来店",
-    visit_2f: "二階席来店",
-    sound_horror: "サウンドホラー",
-    special: "特別ポイント",
-    campaign: "キャンペーン",
-    manual: "手動"
-  }[type] || type;
+    visit_1f: "\u4e00\u968e\u5e2d\u6765\u5e97",
+    visit_2f: "\u4e8c\u968e\u5e2d\u6765\u5e97",
+    sound_horror: "\u30b5\u30a6\u30f3\u30c9\u30db\u30e9\u30fc",
+    special: "\u7279\u5225\u30dd\u30a4\u30f3\u30c8",
+    coupon: "\u30af\u30fc\u30dd\u30f3",
+    manual: "\u624b\u52d5\u8abf\u6574"
+  }[type] || type || "\u30dd\u30a4\u30f3\u30c8";
 }
 
 function qrUrl(path) {
@@ -2268,21 +2313,21 @@ async function viewAdminCoupons() {
   const coupons = data.coupons || [];
   return layout(html`
     ${adminModeBanner()}
-    <section class="page-head"><h1>クーポン管理</h1><p>タイトルと説明文だけのシンプルなクーポンを作成し、QR取得または会員への直接付与ができます。</p></section>
+    <section class="page-head"><h1>\u30af\u30fc\u30dd\u30f3\u7ba1\u7406</h1><p>\u30af\u30fc\u30dd\u30f3\u306e\u4f5c\u6210\u3001QR\u8868\u793a\u3001\u4f1a\u54e1\u3078\u306e\u76f4\u63a5\u4ed8\u4e0e\u3092\u884c\u3044\u307e\u3059\u3002</p></section>
     <form class="grid-form admin-form" data-form="coupon-create">
-      <label>クーポンのタイトル<input name="title" required placeholder="会員登録キャンペーンクーポン" /></label>
-      <label>内容説明文<textarea name="description" rows="3" required placeholder="サウンドホラー一回無料（￥1,000作品のみ対象）"></textarea></label>
-      <label>使用期限<input name="expires_at" type="date" /></label>
-      <button class="primary">クーポンを作成</button>
+      <label>\u30af\u30fc\u30dd\u30f3\u30bf\u30a4\u30c8\u30eb<input name="title" required placeholder="\u4f1a\u54e1\u767b\u9332\u30ad\u30e3\u30f3\u30da\u30fc\u30f3\u30af\u30fc\u30dd\u30f3" /></label>
+      <label>\u5185\u5bb9\u8aac\u660e<textarea name="description" rows="3" required placeholder="\u30b5\u30a6\u30f3\u30c9\u30db\u30e9\u30fc\u4e00\u56de\u7121\u6599\uff08\uffe51,000\u4f5c\u54c1\u306e\u307f\u5bfe\u8c61\uff09"></textarea></label>
+      <label>\u4f7f\u7528\u671f\u9650<input name="expires_at" type="date" /></label>
+      <button class="primary">\u30af\u30fc\u30dd\u30f3\u3092\u4f5c\u6210</button>
     </form>
     <form class="grid-form admin-form" data-form="coupon-grant">
-      <label>対象ユーザー<select name="user_id" required>${(data.users || []).map((u) => `<option value="${u.id}">${u.member_number} / ${u.real_name}</option>`).join("")}</select></label>
-      <label>付与クーポン<select name="coupon_id" required>${coupons.map((c) => `<option value="${c.id}">${c.title}</option>`).join("")}</select></label>
-      <button class="primary">会員に直接付与</button>
+      <label>\u5bfe\u8c61\u30e6\u30fc\u30b6\u30fc<select name="user_id" required>${(data.users || []).map((u) => `<option value="${u.id}">${u.member_number} / ${u.real_name}</option>`).join("")}</select></label>
+      <label>\u4ed8\u4e0e\u30af\u30fc\u30dd\u30f3<select name="coupon_id" required>${coupons.map((c) => `<option value="${c.id}">${c.title}</option>`).join("")}</select></label>
+      <button class="primary">\u4f1a\u54e1\u306b\u76f4\u63a5\u4ed8\u4e0e</button>
     </form>
     <section class="list-section">
-      <h2>作成済みクーポン</h2>
-      ${coupons.length ? coupons.map((c) => `<article class="coupon-admin-item" data-action="open-qr-modal" data-qr-title="${encodeURIComponent(`クーポン: ${c.title}`)}" data-qr-path="${encodeURIComponent(`/qr/coupon/${c.id}`)}"><div><strong>${c.title}</strong><span>${c.description || ""}</span><small>${c.expires_at ? yenDate(c.expires_at) : "無期限"}</small><code>${new URL(publicUrl(`/qr/coupon/${c.id}`), location.origin).href}</code></div><img src="${qrUrl(`/qr/coupon/${c.id}`)}" alt="${c.title} QR" /></article>`).join("") : `<p class="empty">登録済みクーポンはありません。</p>`}
+      <h2>\u4f5c\u6210\u6e08\u307f\u30af\u30fc\u30dd\u30f3</h2>
+      ${coupons.length ? coupons.map((c) => `<article class="coupon-admin-item" data-action="open-qr-modal" data-qr-title="${encodeURIComponent(`\u30af\u30fc\u30dd\u30f3: ${c.title}`)}" data-qr-path="${encodeURIComponent(`/qr/coupon/${c.id}`)}"><div><strong>${c.title}</strong><span>${c.description || ""}</span><small>${c.expires_at ? yenDate(c.expires_at) : "\u7121\u671f\u9650"}</small><code>${new URL(publicUrl(`/qr/coupon/${c.id}`), location.origin).href}</code><button type="button" data-action="delete-created-coupon" data-coupon-id="${c.id}">\u524a\u9664</button></div><img src="${qrUrl(`/qr/coupon/${c.id}`)}" alt="${c.title} QR" /></article>`).join("") : `<p class="empty">\u767b\u9332\u6e08\u307f\u30af\u30fc\u30dd\u30f3\u306f\u3042\u308a\u307e\u305b\u3093\u3002</p>`}
     </section>
     ${state.qrModal ? qrModal(state.qrModal) : ""}
   `, true);
@@ -2340,6 +2385,11 @@ async function render() {
 
 function paintShell(markup) {
   app.innerHTML = markup;
+  if (appPath() === "/scan" && localStorage.getItem(QR_CAMERA_ALLOWED_STORAGE) === "true" && !qrScanning) {
+    setTimeout(() => {
+      if (appPath() === "/scan" && !qrScanning) startQrScanner();
+    }, 80);
+  }
 }
 
 function startIconCropDrag(event, stage = event.currentTarget) {
@@ -2410,6 +2460,7 @@ document.addEventListener("click", (event) => {
   if (action.dataset.action === "use-coupon") useCoupon(action.dataset.couponId);
   if (action.dataset.action === "claim-coupon") claimCoupon(action.dataset.couponId);
   if (action.dataset.action === "delete-granted-coupon") deleteGrantedCoupon(action.dataset.userCouponId);
+  if (action.dataset.action === "delete-created-coupon") deleteCreatedCoupon(action.dataset.couponId);
   if (action.dataset.action === "save-card-image") saveMemberCardImage();
   if (action.dataset.action === "revoke-purchase-permission") revokePurchasePermission(action.dataset.userId);
   if (action.dataset.action === "delete-news") deleteNewsPost(action.dataset.newsId, action.dataset.newsUrl || "");
@@ -2498,7 +2549,11 @@ document.addEventListener("submit", (event) => {
   if (form === "admin-user-search") handleAdminUserSearch(event);
 });
 
-window.addEventListener("popstate", render);
+window.addEventListener("popstate", () => {
+  stopQrScanner();
+  state = { ...state, message: "", error: "" };
+  render();
+});
 if ("serviceWorker" in navigator) navigator.serviceWorker.register(publicUrl("/sw.js")).catch(() => {});
 await initSupabase();
 render();

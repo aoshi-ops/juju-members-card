@@ -998,20 +998,68 @@ values
 on conflict (rank_number) do update
 set rank_name = excluded.rank_name,
     min_point = excluded.min_point,
-    max_point = excluded.max_point;
+    max_point = excluded.max_point,
+    updated_at = now();
 
+with relic_seed(name, description) as (
+  values
+  ('病呑守り', '推し呪物候補'),
+  ('さんげの箱', '推し呪物候補'),
+  ('岩塩仏', '推し呪物候補'),
+  ('遺棄された黒電話', '推し呪物候補'),
+  ('お母さん役の操り人形', '推し呪物候補'),
+  ('坑内馬の蹄鉄', '推し呪物候補'),
+  ('腹話術人形まぁくん', '推し呪物候補')
+)
 insert into public.relics (name, description, is_active)
-select relic.name, relic.description, true
-from (values
-  ('病呑守り', '推し呪物候補', true),
-  ('さんげの箱', '推し呪物候補', true),
-  ('岩塩仏', '推し呪物候補', true),
-  ('遺棄された黒電話', '推し呪物候補', true),
-  ('お母さん役の操り人形', '推し呪物候補', true),
-  ('坑内馬の蹄鉄', '推し呪物候補', true)
-) as relic(name, description, is_active)
+select seed.name, seed.description, true
+from relic_seed seed
 where not exists (
-  select 1 from public.relics existing where existing.name = relic.name
+  select 1 from public.relics existing where existing.name = seed.name
+);
+
+with horror_seed(title, description) as (
+  values
+  ('腹話術人形まぁくん', 'サウンドホラー初期作品'),
+  ('岩塩仏', 'サウンドホラー初期作品'),
+  ('お母さん役の操り人形', 'サウンドホラー初期作品'),
+  ('遺棄された黒電話', 'サウンドホラー初期作品'),
+  ('病呑守り', 'サウンドホラー初期作品'),
+  ('坑内馬の蹄鉄', 'サウンドホラー初期作品')
+)
+update public.sound_horrors target
+set description = seed.description,
+    is_active = true,
+    updated_at = now()
+from horror_seed seed
+where target.title = seed.title;
+
+with horror_seed(title, description) as (
+  values
+  ('腹話術人形まぁくん', 'サウンドホラー初期作品'),
+  ('岩塩仏', 'サウンドホラー初期作品'),
+  ('お母さん役の操り人形', 'サウンドホラー初期作品'),
+  ('遺棄された黒電話', 'サウンドホラー初期作品'),
+  ('病呑守り', 'サウンドホラー初期作品'),
+  ('坑内馬の蹄鉄', 'サウンドホラー初期作品')
+)
+insert into public.sound_horrors (title, description, is_active)
+select seed.title, seed.description, true
+from horror_seed seed
+where not exists (
+  select 1 from public.sound_horrors existing where existing.title = seed.title
+);
+
+update public.sound_horrors
+set is_active = false,
+    updated_at = now()
+where title not in (
+  '腹話術人形まぁくん',
+  '岩塩仏',
+  'お母さん役の操り人形',
+  '遺棄された黒電話',
+  '病呑守り',
+  '坑内馬の蹄鉄'
 );
 
 insert into public.coupons (title, description, expires_at, usage_limit, is_active)
@@ -1030,28 +1078,3 @@ cross join lateral (
   limit 1
 ) c
 on conflict (user_id, coupon_id) do nothing;
-
-insert into public.sound_horrors (title, description, is_active)
-values
-  ('腹話術人形まぁくん', 'サウンドホラー初期作品', true),
-  ('岩塩仏', 'サウンドホラー初期作品', true),
-  ('お母さん役の操り人形', 'サウンドホラー初期作品', true),
-  ('遺棄された黒電話', 'サウンドホラー初期作品', true),
-  ('病呑守り', 'サウンドホラー初期作品', true),
-  ('坑内馬の蹄鉄', 'サウンドホラー初期作品', true)
-on conflict (title) do update
-set description = excluded.description,
-    is_active = true,
-    updated_at = now();
-
-update public.sound_horrors
-set is_active = false,
-    updated_at = now()
-where title not in (
-  '腹話術人形まぁくん',
-  '岩塩仏',
-  'お母さん役の操り人形',
-  '遺棄された黒電話',
-  '病呑守り',
-  '坑内馬の蹄鉄'
-);
