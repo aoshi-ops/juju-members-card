@@ -124,9 +124,9 @@ const NEWS_LOCAL_STORAGE = "JUJU_LOCAL_NEWS_POSTS";
 const CALENDAR_IMAGE_STORAGE = "JUJU_CALENDAR_IMAGE";
 const CALENDAR_SETTING_KEY = "calendar_image";
 const usernameFontOptions = [
-  { id: "hina", label: "\u3072\u306a\u660e\u671d", className: "username-font-hina", minRank: 1 },
-  { id: "taisho", label: "\u5927\u6b63\u6d3b\u5b57", className: "username-font-taisho", minRank: 3 },
-  { id: "igyou", label: "\u7570\u5f62\u660e\u671d", className: "username-font-igyou", minRank: 5 }
+  { id: "hina", label: "\u3072\u306a\u660e\u671d", note: "\u6a19\u6e96", className: "username-font-hina", minRank: 1 },
+  { id: "taisho", label: "\u5927\u6b63\u6d3b\u5b57", note: "\u30e9\u30f3\u30af3\u3067\u89e3\u653e", className: "username-font-taisho", minRank: 3 },
+  { id: "igyou", label: "\u7570\u5f62\u660e\u671d", note: "\u30e9\u30f3\u30af5\u3067\u89e3\u653e", className: "username-font-igyou", minRank: 5 }
 ];
 const cfg = () => ({
   url: localStorage.getItem("SUPABASE_URL") || DEFAULT_SUPABASE_URL,
@@ -863,6 +863,7 @@ async function setUsernameFont(fontId) {
 function usernameEditorModal(user, rank, currentFontId) {
   const mode = state.usernameEditor || "name";
   const available = availableUsernameFonts(rank);
+  const previewName = escapeHtml(user.username || "\u30e6\u30fc\u30b6\u30fc\u30cd\u30fc\u30e0");
   return html`
     <div class="modal-backdrop" data-action="close-username-editor">
       <section class="username-editor-modal" data-no-flip>
@@ -875,8 +876,8 @@ function usernameEditorModal(user, rank, currentFontId) {
             ${usernameFontOptions.map((font) => {
               const unlocked = available.some((item) => item.id === font.id);
               return `<button type="button" class="font-choice ${font.className} ${currentFontId === font.id ? "active" : ""}" data-action="set-username-font" data-font-id="${font.id}" ${unlocked ? "" : "disabled"}>
-                <span>${font.label}</span>
-                <strong>${unlocked ? "\u9078\u629e\u53ef" : `\u30e9\u30f3\u30af${font.minRank}\u3067\u89e3\u653e`}</strong>
+                <span class="font-preview-name">${previewName}</span>
+                <small>${font.label} / ${unlocked ? "\u9078\u629e\u53ef" : font.note}</small>
               </button>`;
             }).join("")}
           </div>
@@ -885,6 +886,7 @@ function usernameEditorModal(user, rank, currentFontId) {
             <label>\u30e6\u30fc\u30b6\u30fc\u30cd\u30fc\u30e0<input name="username" required maxlength="32" value="${escapeHtml(user.username || "")}" /></label>
             <button class="primary">\u6c7a\u5b9a</button>
           </form>
+          <button class="text-action" type="button" data-action="show-username-fonts">\u30d5\u30a9\u30f3\u30c8\u9078\u629e\u3078</button>
         `}
       </section>
     </div>
@@ -1762,7 +1764,7 @@ function layout(content, admin = false) {
       <button class="brand" data-link="${admin ? "/admin/dashboard" : "/member-card"}"><img src="assets/brand/joujou_logo_white.png" alt="" aria-hidden="true" />cafeジュジュ</button>
       <nav>
         ${admin
-          ? `<button data-link="/admin/dashboard">管理</button><button data-link="/admin/users">登録者</button><button data-link="/admin/visits">履歴</button><button data-link="/admin/points">特別ポイント</button><button data-link="/admin/qr">QR表示</button><button data-link="/admin/coupons">クーポン</button><button data-link="/admin/news">NEWS</button>`
+          ? `<button data-link="/admin/dashboard">管理</button><button data-link="/admin/users">登録者</button><button data-link="/admin/visits">履歴</button><button data-link="/admin/points">特別ポイント</button><button data-link="/admin/qr">QR表示</button><button data-link="/admin/coupons">クーポン</button><button data-link="/admin/calendar">カレンダー</button><button data-link="/admin/news">NEWS</button>`
           : `<button data-link="/member-card">会員証</button><button data-link="/coupons">クーポン</button><button data-link="/special-cards">特別カード</button><button class="news-nav-button" data-link="/news">NEWS${state.unreadNewsCount ? `<span class="news-badge">${state.unreadNewsCount}</span>` : ""}</button><button data-link="/contact">コンタクト</button>`}
         <button data-action="logout">ログアウト</button>
       </nav>
@@ -1934,16 +1936,18 @@ async function viewMemberCard() {
           <div class="rank-badge" data-rank-label="${rank.name}"><span>\u30e9\u30f3\u30af ${rank.n}</span><strong>${rank.name}</strong></div>
           ${purchasePermission.allowed ? `<button type="button" class="purchase-seal ${purchasePermission.manual ? "manual" : ""}" data-action="open-purchase-seal" data-no-flip><span>\u546a\u7269\u8cfc\u5165\u8cc7\u683c</span><strong>\u8a31</strong></button>` : ""}
           <div class="point-strip">
-            <span>\u73fe\u5728\u30dd\u30a4\u30f3\u30c8</span>
-            <strong>${points} pt</strong>
+            <div class="point-main">
+              <span>\u73fe\u5728\u30dd\u30a4\u30f3\u30c8</span>
+              <strong>${points} <em>pt</em></strong>
+            </div>
+            <div class="profile-controls" data-no-flip>
+              <span>\u8a95\u751f\u65e5 ${birthday}</span>
+              <label class="check"><input type="checkbox" data-action="birthday" ${data.user.birthday_visible ? "checked" : ""} /> \u8a95\u751f\u65e5\u8868\u793a</label>
+              <button class="calendar-icon-button" type="button" data-action="open-calendar-modal" data-no-flip aria-label="\u55b6\u696d\u65e5\u30ab\u30ec\u30f3\u30c0\u30fc\u3092\u8868\u793a"><img src="assets/calendar-icon.jpg" alt="" aria-hidden="true" /></button>
+            </div>
           </div>
           <div class="mini-facts">
-            <span>\u8a95\u751f\u65e5 ${birthday}</span>
             <span>${next ? `\u6b21\u306e\u30e9\u30f3\u30af\u307e\u3067 ${Math.max(0, next.min - points).toFixed(1)}pt` : "\u6700\u9ad8\u30e9\u30f3\u30af"}</span>
-          </div>
-          <div class="profile-controls">
-            <label class="check"><input type="checkbox" data-action="birthday" ${data.user.birthday_visible ? "checked" : ""} /> \u8a95\u751f\u65e5\u8868\u793a</label>
-            <button class="calendar-icon-button" type="button" data-action="open-calendar-modal" data-no-flip aria-label="\u55b6\u696d\u65e5\u30ab\u30ec\u30f3\u30c0\u30fc\u3092\u8868\u793a"><img src="assets/calendar-icon.jpg" alt="" aria-hidden="true" /></button>
           </div>
         </article>
         <article class="member-card face back">
@@ -2531,15 +2535,7 @@ async function viewAdminCoupons() {
   return layout(html`
     ${adminModeBanner()}
     <section class="page-head"><h1>\u30af\u30fc\u30dd\u30f3\u7ba1\u7406</h1><p>\u30af\u30fc\u30dd\u30f3\u306e\u4f5c\u6210\u3001QR\u8868\u793a\u3001\u4f1a\u54e1\u3078\u306e\u76f4\u63a5\u4ed8\u4e0e\u3092\u884c\u3044\u307e\u3059\u3002</p></section>
-    <form class="grid-form admin-form calendar-admin-form" data-form="calendar-image">
-      <div>
-        <h2>\u55b6\u696d\u65e5\u30ab\u30ec\u30f3\u30c0\u30fc</h2>
-        <p>\u4f1a\u54e1\u5074\u306e\u8a95\u751f\u65e5\u8868\u793a\u6b04\u306b\u3042\u308b\u30ab\u30ec\u30f3\u30c0\u30fc\u30a2\u30a4\u30b3\u30f3\u304b\u3089\u8868\u793a\u3055\u308c\u307e\u3059\u3002</p>
-      </div>
-      <label>\u753b\u50cf\u3092\u30a2\u30c3\u30d7\u30ed\u30fc\u30c9<input name="calendar_file" type="file" accept="image/*" required /></label>
-      ${calendarImage ? `<img class="calendar-admin-preview" src="${calendarImage}" alt="\u73fe\u5728\u306e\u55b6\u696d\u65e5\u30ab\u30ec\u30f3\u30c0\u30fc" />` : `<p class="form-note">\u307e\u3060\u30ab\u30ec\u30f3\u30c0\u30fc\u753b\u50cf\u306f\u767b\u9332\u3055\u308c\u3066\u3044\u307e\u305b\u3093\u3002</p>`}
-      <button class="primary">\u30ab\u30ec\u30f3\u30c0\u30fc\u3092\u66f4\u65b0</button>
-    </form>
+    ${calendarAdminForm(calendarImage)}
     <form class="grid-form admin-form" data-form="coupon-create">
       <label>\u30af\u30fc\u30dd\u30f3\u30bf\u30a4\u30c8\u30eb<input name="title" required placeholder="\u4f1a\u54e1\u767b\u9332\u30ad\u30e3\u30f3\u30da\u30fc\u30f3\u30af\u30fc\u30dd\u30f3" /></label>
       <label>\u5185\u5bb9\u8aac\u660e<textarea name="description" rows="3" required placeholder="\u30b5\u30a6\u30f3\u30c9\u30db\u30e9\u30fc\u4e00\u56de\u7121\u6599\uff08\uffe51,000\u4f5c\u54c1\u306e\u307f\u5bfe\u8c61\uff09"></textarea></label>
@@ -2556,6 +2552,29 @@ async function viewAdminCoupons() {
       ${coupons.length ? coupons.map((c) => `<article class="coupon-admin-item" data-action="open-qr-modal" data-qr-title="${encodeURIComponent(`\u30af\u30fc\u30dd\u30f3: ${c.title}`)}" data-qr-path="${encodeURIComponent(`/qr/coupon/${c.id}`)}"><div><strong>${c.title}</strong><span>${c.description || ""}</span><small>${c.expires_at ? yenDate(c.expires_at) : "\u7121\u671f\u9650"}</small><code>${new URL(publicUrl(`/qr/coupon/${c.id}`), location.origin).href}</code><button type="button" data-action="delete-created-coupon" data-coupon-id="${c.id}">\u524a\u9664</button></div><img src="${qrUrl(`/qr/coupon/${c.id}`)}" alt="${c.title} QR" /></article>`).join("") : `<p class="empty">\u767b\u9332\u6e08\u307f\u30af\u30fc\u30dd\u30f3\u306f\u3042\u308a\u307e\u305b\u3093\u3002</p>`}
     </section>
     ${state.qrModal ? qrModal(state.qrModal) : ""}
+  `, true);
+}
+
+function calendarAdminForm(calendarImage = "") {
+  return html`
+    <form id="calendar" class="grid-form admin-form calendar-admin-form" data-form="calendar-image">
+      <div>
+        <h2>\u55b6\u696d\u65e5\u30ab\u30ec\u30f3\u30c0\u30fc</h2>
+        <p>\u4f1a\u54e1\u5074\u306e\u30ab\u30ec\u30f3\u30c0\u30fc\u30a2\u30a4\u30b3\u30f3\u304b\u3089\u8868\u793a\u3055\u308c\u308b\u753b\u50cf\u3092\u66f4\u65b0\u3057\u307e\u3059\u3002</p>
+      </div>
+      <label>\u753b\u50cf\u3092\u30a2\u30c3\u30d7\u30ed\u30fc\u30c9<input name="calendar_file" type="file" accept="image/*" required /></label>
+      ${calendarImage ? `<img class="calendar-admin-preview" src="${calendarImage}" alt="\u73fe\u5728\u306e\u55b6\u696d\u65e5\u30ab\u30ec\u30f3\u30c0\u30fc" />` : `<p class="form-note">\u307e\u3060\u30ab\u30ec\u30f3\u30c0\u30fc\u753b\u50cf\u306f\u767b\u9332\u3055\u308c\u3066\u3044\u307e\u305b\u3093\u3002</p>`}
+      <button class="primary">\u30ab\u30ec\u30f3\u30c0\u30fc\u3092\u66f4\u65b0</button>
+    </form>
+  `;
+}
+
+async function viewAdminCalendar() {
+  const calendarImage = await loadCalendarImage();
+  return layout(html`
+    ${adminModeBanner()}
+    <section class="page-head"><h1>\u30ab\u30ec\u30f3\u30c0\u30fc\u7ba1\u7406</h1><p>\u4f1a\u54e1\u5074\u306b\u8868\u793a\u3059\u308b\u55b6\u696d\u65e5\u30ab\u30ec\u30f3\u30c0\u30fc\u3092\u66f4\u65b0\u3057\u307e\u3059\u3002</p></section>
+    ${calendarAdminForm(calendarImage)}
   `, true);
 }
 
@@ -2597,6 +2616,7 @@ async function render() {
     else if (path === "/admin/points") paintShell(await viewAdminPoints());
     else if (path === "/admin/qr") paintShell(await viewAdminQr());
     else if (path === "/admin/coupons") paintShell(await viewAdminCoupons());
+    else if (path === "/admin/calendar") paintShell(await viewAdminCalendar());
     else if (path === "/admin/news") paintShell(await viewAdminNews());
     else paintShell(layout(`<section class="empty-state">ページが見つかりません。</section>`));
   } catch (error) {
@@ -2686,8 +2706,12 @@ document.addEventListener("click", (event) => {
     });
   }
   if (action.dataset.action === "close-username-editor") {
-    if (event.target.closest(".username-editor-modal") && !event.target.closest('[data-action="close-username-editor"]')) return;
+    if (event.target !== action && !event.target.closest('[data-action="close-username-editor"]')) return;
     state = { ...state, usernameEditor: null };
+    render();
+  }
+  if (action.dataset.action === "show-username-fonts") {
+    state = { ...state, usernameEditor: "font" };
     render();
   }
   if (action.dataset.action === "set-username-font") setUsernameFont(action.dataset.fontId);
@@ -2696,7 +2720,7 @@ document.addEventListener("click", (event) => {
     render();
   }
   if (action.dataset.action === "close-calendar-modal") {
-    if (event.target.closest(".calendar-modal") && !event.target.closest('[data-action="close-calendar-modal"]')) return;
+    if (event.target !== action && !event.target.closest('[data-action="close-calendar-modal"]')) return;
     state = { ...state, calendarOpen: false };
     render();
   }
