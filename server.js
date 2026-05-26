@@ -1,6 +1,7 @@
 import { createServer } from "node:http";
 import { readFile } from "node:fs/promises";
 import { extname, join, normalize } from "node:path";
+import { networkInterfaces } from "node:os";
 
 const root = process.cwd();
 const port = Number(process.env.PORT || 4173);
@@ -11,8 +12,19 @@ const types = {
   ".js": "text/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".svg": "image/svg+xml; charset=utf-8",
-  ".png": "image/png"
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+  ".ttf": "font/ttf"
 };
+
+function localIpv4Addresses() {
+  return Object.values(networkInterfaces())
+    .flat()
+    .filter((item) => item?.family === "IPv4" && !item.internal)
+    .map((item) => item.address);
+}
 
 function fileFor(url) {
   const path = decodeURIComponent(new URL(url, `http://localhost:${port}`).pathname);
@@ -43,6 +55,9 @@ createServer(async (req, res) => {
     res.writeHead(200, { "Content-Type": types[".html"], "Cache-Control": "no-store" });
     res.end(body);
   }
-}).listen(port, () => {
-  console.log(`cafeジュジュ メンバーズカード: http://localhost:${port}`);
+}).listen(port, "0.0.0.0", () => {
+  console.log(`JUJU members local: http://localhost:${port}/member-card`);
+  for (const address of localIpv4Addresses()) {
+    console.log(`Phone/LAN URL: http://${address}:${port}/member-card`);
+  }
 });

@@ -117,8 +117,17 @@ const iconStorageKey = (userId) => `JUJU_ICON_${userId}`;
 const relicStorageKey = (userId) => `JUJU_FAVORITE_RELIC_${userId}`;
 const couponEnsuredKey = (userId) => `JUJU_COUPON_READY_${userId}`;
 const newsReadStorageKey = (userId) => `JUJU_NEWS_READ_${userId}`;
+const usernameFontStorageKey = (userId) => `JUJU_USERNAME_FONT_${userId}`;
+const usernameFontSeenStorageKey = (userId) => `JUJU_USERNAME_FONT_SEEN_${userId}`;
 const QR_CAMERA_ALLOWED_STORAGE = "JUJU_QR_CAMERA_ALLOWED";
 const NEWS_LOCAL_STORAGE = "JUJU_LOCAL_NEWS_POSTS";
+const CALENDAR_IMAGE_STORAGE = "JUJU_CALENDAR_IMAGE";
+const CALENDAR_SETTING_KEY = "calendar_image";
+const usernameFontOptions = [
+  { id: "hina", label: "\u3072\u306a\u660e\u671d", className: "username-font-hina", minRank: 1 },
+  { id: "taisho", label: "\u5927\u6b63\u6d3b\u5b57", className: "username-font-taisho", minRank: 3 },
+  { id: "igyou", label: "\u7570\u5f62\u660e\u671d", className: "username-font-igyou", minRank: 5 }
+];
 const cfg = () => ({
   url: localStorage.getItem("SUPABASE_URL") || DEFAULT_SUPABASE_URL,
   anon: localStorage.getItem("SUPABASE_ANON_KEY") || DEFAULT_SUPABASE_ANON_KEY
@@ -347,6 +356,66 @@ function localNewsPosts() {
 function saveLocalNewsPost(post) {
   const posts = [post, ...localNewsPosts()].slice(0, 100);
   localStorage.setItem(NEWS_LOCAL_STORAGE, JSON.stringify(posts));
+}
+
+function availableUsernameFonts(rank) {
+  return usernameFontOptions.filter((font) => rank.n >= font.minRank);
+}
+
+function currentUsernameFont(user, rank) {
+  const stored = localStorage.getItem(usernameFontStorageKey(user.id)) || "hina";
+  return availableUsernameFonts(rank).some((font) => font.id === stored) ? stored : "hina";
+}
+
+function usernameFontClass(fontId) {
+  return usernameFontOptions.find((font) => font.id === fontId)?.className || "username-font-hina";
+}
+
+function hasNewUsernameFonts(user, rank) {
+  const available = availableUsernameFonts(rank).map((font) => font.id).sort().join(",");
+  const seen = localStorage.getItem(usernameFontSeenStorageKey(user.id));
+  return Boolean(seen && seen !== available);
+}
+
+function markUsernameFontsSeen(user, rank) {
+  const available = availableUsernameFonts(rank).map((font) => font.id).sort().join(",");
+  localStorage.setItem(usernameFontSeenStorageKey(user.id), available);
+}
+
+function setInitialUsernameFontSeen(user, rank) {
+  if (!localStorage.getItem(usernameFontSeenStorageKey(user.id))) {
+    markUsernameFontsSeen(user, rank);
+  }
+}
+
+function calendarImageFallback() {
+  return localStorage.getItem(CALENDAR_IMAGE_STORAGE) || "assets/calendar-icon.jpg";
+}
+
+async function loadCalendarImage() {
+  if (supabase) {
+    const result = await optionalQuery(
+      supabase.from("app_settings").select("value").eq("key", CALENDAR_SETTING_KEY).maybeSingle(),
+      null
+    );
+    const value = result.data?.value;
+    if (value) {
+      localStorage.setItem(CALENDAR_IMAGE_STORAGE, value);
+      return value;
+    }
+  }
+  return localStorage.getItem(CALENDAR_IMAGE_STORAGE) || "";
+}
+
+async function saveCalendarImageSetting(value) {
+  localStorage.setItem(CALENDAR_IMAGE_STORAGE, value);
+  if (!supabase) return;
+  const result = await supabase.from("app_settings").upsert({
+    key: CALENDAR_SETTING_KEY,
+    value,
+    updated_at: new Date().toISOString()
+  });
+  if (result.error) throw result.error;
 }
 
 function mergeNewsPosts(remotePosts = []) {
@@ -754,6 +823,88 @@ async function toggleBirthday(checked) {
   render();
 }
 
+async function updateUsername(event) {
+  event.preventDefault();
+  const form = new FormData(event.currentTarget);
+  const username = String(form.get("username") || "").trim();
+  try {
+    if (!username) throw new Error("\u30e6\u30fc\u30b6\u30fc\u30cd\u30fc\u30e0\u3092\u5165\u529b\u3057\u3066\u304f\u3060\u3055\u3044\u3002");
+    const data = await loadMyData();
+    if (!supabase) {
+      demo.user.username = username;
+    } else {
+      const { error } = await supabase.from("users").update({ username }).eq("id", data.user.id);
+      if (error) throw error;
+    }
+    state = { ...state, usernameEditor: "font", message: "\u30e6\u30fc\u30b6\u30fc\u30cd\u30fc\u30e0\u3092\u66f4\u65b0\u3057\u307e\u3057\u305f\u3002", error: "" };
+  } catch (error) {
+    state = { ...state, error: appErrorMessage(error) };
+  }
+  render();
+}
+
+async function setUsernameFont(fontId) {
+  try {
+    const data = await loadMyData();
+    const rank = rankFor(sumRankPoints(data.pointEvents));
+    const available = availableUsernameFonts(rank);
+    if (!available.some((font) => font.id === fontId)) {
+      throw new Error("\u3053\u306e\u30d5\u30a9\u30f3\u30c8\u306f\u307e\u3060\u9078\u3079\u307e\u305b\u3093\u3002");
+    }
+    localStorage.setItem(usernameFontStorageKey(data.user.id), fontId);
+    markUsernameFontsSeen(data.user, rank);
+    state = { ...state, usernameEditor: null, message: "\u30d5\u30a9\u30f3\u30c8\u3092\u66f4\u65b0\u3057\u307e\u3057\u305f\u3002", error: "" };
+  } catch (error) {
+    state = { ...state, error: appErrorMessage(error) };
+  }
+  render();
+}
+
+function usernameEditorModal(user, rank, currentFontId) {
+  const mode = state.usernameEditor || "name";
+  const available = availableUsernameFonts(rank);
+  return html`
+    <div class="modal-backdrop" data-action="close-username-editor">
+      <section class="username-editor-modal" data-no-flip>
+        <div class="modal-head">
+          <h2>${mode === "font" ? "\u30d5\u30a9\u30f3\u30c8\u3092\u9078\u3076" : "\u540d\u524d\u3092\u5909\u66f4"}</h2>
+          <button type="button" data-action="close-username-editor">\u9589\u3058\u308b</button>
+        </div>
+        ${mode === "font" ? `
+          <div class="font-choice-list">
+            ${usernameFontOptions.map((font) => {
+              const unlocked = available.some((item) => item.id === font.id);
+              return `<button type="button" class="font-choice ${font.className} ${currentFontId === font.id ? "active" : ""}" data-action="set-username-font" data-font-id="${font.id}" ${unlocked ? "" : "disabled"}>
+                <span>${font.label}</span>
+                <strong>${unlocked ? "\u9078\u629e\u53ef" : `\u30e9\u30f3\u30af${font.minRank}\u3067\u89e3\u653e`}</strong>
+              </button>`;
+            }).join("")}
+          </div>
+        ` : `
+          <form data-form="username-update">
+            <label>\u30e6\u30fc\u30b6\u30fc\u30cd\u30fc\u30e0<input name="username" required maxlength="32" value="${escapeHtml(user.username || "")}" /></label>
+            <button class="primary">\u6c7a\u5b9a</button>
+          </form>
+        `}
+      </section>
+    </div>
+  `;
+}
+
+function calendarModal(imageUrl) {
+  return html`
+    <div class="modal-backdrop" data-action="close-calendar-modal">
+      <section class="calendar-modal" data-no-flip>
+        <div class="modal-head">
+          <h2>\u55b6\u696d\u65e5\u30ab\u30ec\u30f3\u30c0\u30fc</h2>
+          <button type="button" data-action="close-calendar-modal">\u9589\u3058\u308b</button>
+        </div>
+        <img src="${imageUrl || calendarImageFallback()}" alt="\u55b6\u696d\u65e5\u30ab\u30ec\u30f3\u30c0\u30fc" />
+      </section>
+    </div>
+  `;
+}
+
 async function setFavoriteRelic(value, name = "") {
   const data = await loadMyData();
   const options = relicOptions(data.relics);
@@ -1111,12 +1262,22 @@ async function revokeUserPoints(event) {
 
 async function saveMemberCardImage() {
   try {
-    const target = document.querySelector(".flip-card");
+    const flipCard = document.querySelector(".flip-card");
+    const target = flipCard?.classList.contains("is-flipped")
+      ? document.querySelector(".member-card.back")
+      : document.querySelector(".member-card.front");
     if (!target) throw new Error("保存する会員証が見つかりません。");
     state = { ...state, message: "会員証画像を作成しています。", error: "" };
     const mod = await import("https://esm.sh/html2canvas@1.4.1");
     const html2canvas = mod.default || mod;
-    const canvas = await html2canvas(target, { backgroundColor: null, scale: Math.min(3, window.devicePixelRatio || 2), useCORS: true });
+    const previousTransform = target.style.transform;
+    target.style.transform = "none";
+    let canvas;
+    try {
+      canvas = await html2canvas(target, { backgroundColor: null, scale: Math.min(3, window.devicePixelRatio || 2), useCORS: true, scrollX: 0, scrollY: 0 });
+    } finally {
+      target.style.transform = previousTransform;
+    }
     const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
     if (!blob) throw new Error("画像を作成できませんでした。");
     const file = new File([blob], "juju-members-card.png", { type: "image/png" });
@@ -1200,7 +1361,15 @@ async function grantCoupon(event) {
     state = { busy: true, message: "", error: "" };
     if (!form.get("user_id") || !form.get("coupon_id")) throw new Error("対象ユーザーとクーポンを選択してください。");
     if (isDemoAdmin()) {
-      state = { busy: false, message: "デモ管理では直接付与の操作確認だけ行いました。", error: "" };
+      if (!supabase) throw new Error("Supabase接続が必要です。");
+      const rpc = await supabase.rpc("staff_grant_coupon_to_user", {
+        p_staff_id: ADMIN_DEMO_ID,
+        p_password: ADMIN_DEMO_PASSWORD,
+        p_user_id: form.get("user_id"),
+        p_coupon_id: form.get("coupon_id")
+      });
+      if (rpc.error) throw rpc.error;
+      state = { busy: false, message: rpc.data?.message || "会員にクーポンを付与しました。", error: "" };
       render();
       return;
     }
@@ -1226,6 +1395,42 @@ async function grantCoupon(event) {
     if (submitter) {
       submitter.disabled = false;
       submitter.textContent = submitterText || "会員に直接付与";
+    }
+  }
+  render();
+}
+
+async function updateCalendarImage(event) {
+  event.preventDefault();
+  const submitter = event.submitter;
+  const submitterText = submitter?.textContent;
+  if (submitter) {
+    submitter.disabled = true;
+    submitter.textContent = "保存中";
+  }
+  try {
+    const form = new FormData(event.currentTarget);
+    const imageUrl = await readImageFileAsDataUrl(form.get("calendar_file"));
+    if (!imageUrl) throw new Error("カレンダー画像を選んでください。");
+    if (isDemoAdmin() && supabase) {
+      const rpc = await supabase.rpc("staff_update_app_setting", {
+        p_staff_id: ADMIN_DEMO_ID,
+        p_password: ADMIN_DEMO_PASSWORD,
+        p_key: CALENDAR_SETTING_KEY,
+        p_value: imageUrl
+      });
+      if (rpc.error) throw rpc.error;
+      localStorage.setItem(CALENDAR_IMAGE_STORAGE, imageUrl);
+    } else {
+      await saveCalendarImageSetting(imageUrl);
+    }
+    state = { busy: false, message: "営業日カレンダーを更新しました。", error: "" };
+  } catch (error) {
+    state = { busy: false, message: "", error: appErrorMessage(error) };
+  } finally {
+    if (submitter) {
+      submitter.disabled = false;
+      submitter.textContent = submitterText || "カレンダーを更新";
     }
   }
   render();
@@ -1691,6 +1896,10 @@ async function viewMemberCard() {
   const favoriteLabel = favoriteRelic?.name || "\u63a8\u3057\u546a\u7269";
   const favoriteImage = favoriteRelic?.image || "";
   const purchasePermission = purchasePermissionFor(data.user, rank, data.purchasePermissions || []);
+  const usernameFontId = currentUsernameFont(data.user, rank);
+  const usernameNewFonts = hasNewUsernameFonts(data.user, rank);
+  const calendarImage = await loadCalendarImage();
+  setInitialUsernameFontSeen(data.user, rank);
 
   return layout(html`
     <section class="member-actions">
@@ -1705,7 +1914,10 @@ async function viewMemberCard() {
           <div class="card-row">
             <div>
               <p class="eyebrow">MEMBERS CARD</p>
-              <h1>${data.user.username}</h1>
+              <button type="button" class="username-button ${usernameFontClass(usernameFontId)}" data-action="open-username-editor" data-no-flip>
+                <span>${data.user.username}</span>
+                ${usernameNewFonts ? `<i class="username-font-badge" aria-label="新しいフォント"></i>` : ""}
+              </button>
               <p class="member-no">${data.user.member_number}</p>
             </div>
             <div class="member-symbols" data-no-flip>
@@ -1731,6 +1943,7 @@ async function viewMemberCard() {
           </div>
           <div class="profile-controls">
             <label class="check"><input type="checkbox" data-action="birthday" ${data.user.birthday_visible ? "checked" : ""} /> \u8a95\u751f\u65e5\u8868\u793a</label>
+            <button class="calendar-icon-button" type="button" data-action="open-calendar-modal" data-no-flip aria-label="\u55b6\u696d\u65e5\u30ab\u30ec\u30f3\u30c0\u30fc\u3092\u8868\u793a"><img src="assets/calendar-icon.jpg" alt="" aria-hidden="true" /></button>
           </div>
         </article>
         <article class="member-card face back">
@@ -1752,6 +1965,8 @@ async function viewMemberCard() {
     ${state.relicPicker ? relicPickerModal(relics, favoriteRelic) : ""}
     ${state.iconEditor ? iconEditorModal(state.iconEditor) : ""}
     ${state.purchaseSealOpen ? purchaseSealModal() : ""}
+    ${state.usernameEditor ? usernameEditorModal(data.user, rank, usernameFontId) : ""}
+    ${state.calendarOpen ? calendarModal(calendarImage) : ""}
   `);
 }
 
@@ -1862,6 +2077,7 @@ function couponModal(userCoupon) {
           <small>${expires}</small>
         </div>
         <p class="notice">使用時はスタッフに画面を見せてください。</p>
+        <p class="coupon-staff-note">スタッフが押すので、ご自身では押さないでください。</p>
         ${userCoupon.status === "available" ? `<button class="primary use-coupon" data-action="use-coupon" data-coupon-id="${userCoupon.id}">使用する</button>` : ""}
       </section>
     </div>
@@ -2311,9 +2527,19 @@ async function viewAdminPoints() {
 async function viewAdminCoupons() {
   const data = await loadAdminData();
   const coupons = data.coupons || [];
+  const calendarImage = await loadCalendarImage();
   return layout(html`
     ${adminModeBanner()}
     <section class="page-head"><h1>\u30af\u30fc\u30dd\u30f3\u7ba1\u7406</h1><p>\u30af\u30fc\u30dd\u30f3\u306e\u4f5c\u6210\u3001QR\u8868\u793a\u3001\u4f1a\u54e1\u3078\u306e\u76f4\u63a5\u4ed8\u4e0e\u3092\u884c\u3044\u307e\u3059\u3002</p></section>
+    <form class="grid-form admin-form calendar-admin-form" data-form="calendar-image">
+      <div>
+        <h2>\u55b6\u696d\u65e5\u30ab\u30ec\u30f3\u30c0\u30fc</h2>
+        <p>\u4f1a\u54e1\u5074\u306e\u8a95\u751f\u65e5\u8868\u793a\u6b04\u306b\u3042\u308b\u30ab\u30ec\u30f3\u30c0\u30fc\u30a2\u30a4\u30b3\u30f3\u304b\u3089\u8868\u793a\u3055\u308c\u307e\u3059\u3002</p>
+      </div>
+      <label>\u753b\u50cf\u3092\u30a2\u30c3\u30d7\u30ed\u30fc\u30c9<input name="calendar_file" type="file" accept="image/*" required /></label>
+      ${calendarImage ? `<img class="calendar-admin-preview" src="${calendarImage}" alt="\u73fe\u5728\u306e\u55b6\u696d\u65e5\u30ab\u30ec\u30f3\u30c0\u30fc" />` : `<p class="form-note">\u307e\u3060\u30ab\u30ec\u30f3\u30c0\u30fc\u753b\u50cf\u306f\u767b\u9332\u3055\u308c\u3066\u3044\u307e\u305b\u3093\u3002</p>`}
+      <button class="primary">\u30ab\u30ec\u30f3\u30c0\u30fc\u3092\u66f4\u65b0</button>
+    </form>
     <form class="grid-form admin-form" data-form="coupon-create">
       <label>\u30af\u30fc\u30dd\u30f3\u30bf\u30a4\u30c8\u30eb<input name="title" required placeholder="\u4f1a\u54e1\u767b\u9332\u30ad\u30e3\u30f3\u30da\u30fc\u30f3\u30af\u30fc\u30dd\u30f3" /></label>
       <label>\u5185\u5bb9\u8aac\u660e<textarea name="description" rows="3" required placeholder="\u30b5\u30a6\u30f3\u30c9\u30db\u30e9\u30fc\u4e00\u56de\u7121\u6599\uff08\uffe51,000\u4f5c\u54c1\u306e\u307f\u5bfe\u8c61\uff09"></textarea></label>
@@ -2448,6 +2674,32 @@ document.addEventListener("click", (event) => {
     render();
   }
   if (action.dataset.action === "favorite-relic") setFavoriteRelic(action.dataset.relicId, action.dataset.relicName);
+  if (action.dataset.action === "open-username-editor") {
+    loadMyData().then((data) => {
+      const rank = rankFor(sumRankPoints(data.pointEvents));
+      markUsernameFontsSeen(data.user, rank);
+      state = { ...state, usernameEditor: "name" };
+      render();
+    }).catch((error) => {
+      state = { ...state, error: appErrorMessage(error) };
+      render();
+    });
+  }
+  if (action.dataset.action === "close-username-editor") {
+    if (event.target.closest(".username-editor-modal") && !event.target.closest('[data-action="close-username-editor"]')) return;
+    state = { ...state, usernameEditor: null };
+    render();
+  }
+  if (action.dataset.action === "set-username-font") setUsernameFont(action.dataset.fontId);
+  if (action.dataset.action === "open-calendar-modal") {
+    state = { ...state, calendarOpen: true };
+    render();
+  }
+  if (action.dataset.action === "close-calendar-modal") {
+    if (event.target.closest(".calendar-modal") && !event.target.closest('[data-action="close-calendar-modal"]')) return;
+    state = { ...state, calendarOpen: false };
+    render();
+  }
   if (action.dataset.action === "open-coupon") {
     state = { ...state, selectedCouponId: action.dataset.couponId };
     render();
@@ -2505,7 +2757,7 @@ document.addEventListener("click", (event) => {
   }
   if (action.dataset.action === "save-cropped-icon") saveCroppedIcon();
   if (action.dataset.action === "flip-card") {
-    if (event.target.closest("[data-no-flip], .avatar, .favorite-relic-badge, .profile-controls")) return;
+    if (event.target.closest("[data-no-flip], .avatar, .favorite-relic-badge, .profile-controls, .username-button")) return;
     action.classList.toggle("is-flipped");
   }
   if (action.dataset.action === "record-visit") recordVisit(action.dataset.type);
@@ -2543,6 +2795,8 @@ document.addEventListener("submit", (event) => {
   if (form === "point-revoke") revokeUserPoints(event);
   if (form === "coupon-create") createCoupon(event);
   if (form === "coupon-grant") grantCoupon(event);
+  if (form === "calendar-image") updateCalendarImage(event);
+  if (form === "username-update") updateUsername(event);
   if (form === "purchase-permission") grantPurchasePermission(event);
   if (form === "news-create" || form === "news-url-create") createNewsPost(event.currentTarget, event.submitter);
   if (form === "news-edit") updateNewsPost(event);
@@ -2554,6 +2808,25 @@ window.addEventListener("popstate", () => {
   state = { ...state, message: "", error: "" };
   render();
 });
-if ("serviceWorker" in navigator) navigator.serviceWorker.register(publicUrl("/sw.js")).catch(() => {});
+if ("serviceWorker" in navigator) {
+  let refreshingForUpdate = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (refreshingForUpdate) return;
+    refreshingForUpdate = true;
+    location.reload();
+  });
+  navigator.serviceWorker.register(publicUrl("/sw.js")).then((registration) => {
+    registration.update?.();
+    if (registration.waiting) registration.waiting.postMessage({ type: "SKIP_WAITING" });
+    registration.addEventListener("updatefound", () => {
+      const worker = registration.installing;
+      worker?.addEventListener("statechange", () => {
+        if (worker.state === "installed" && navigator.serviceWorker.controller) {
+          worker.postMessage({ type: "SKIP_WAITING" });
+        }
+      });
+    });
+  }).catch(() => {});
+}
 await initSupabase();
 render();

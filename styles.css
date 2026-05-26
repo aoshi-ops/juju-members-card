@@ -26,6 +26,12 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: "JujuIgyou";
+  src: url("assets/fonts/IgyouMincho.ttf") format("truetype");
+  font-display: swap;
+}
+
 * { box-sizing: border-box; }
 
 body {
@@ -404,6 +410,7 @@ form {
   aspect-ratio: 1.74 / 1;
   position: relative;
   z-index: 1;
+  padding: 18px;
   transform-style: preserve-3d;
   transition: transform 520ms ease;
 }
@@ -419,14 +426,14 @@ form {
 
 .member-card {
   position: absolute;
-  inset: -8px 0;
+  inset: 18px;
   font-family: "JujuHinaMincho", "Yu Mincho", "Hiragino Mincho ProN", serif;
   backface-visibility: hidden;
   -webkit-backface-visibility: hidden;
   transform-style: preserve-3d;
   border-radius: 8px;
   border: 0;
-  padding: clamp(18px, 3.4vw, 38px);
+  padding: clamp(34px, 5vw, 64px);
   overflow: hidden;
   box-shadow: 0 24px 58px rgba(0, 0, 0, 0.28), inset 0 0 80px rgba(50, 25, 9, 0.28);
 }
@@ -440,31 +447,19 @@ form {
 
 .front {
   transform: rotateY(0deg);
-  background:
-    linear-gradient(135deg, rgba(22, 14, 6, 0.22), rgba(12, 8, 4, 0.54)),
-    radial-gradient(circle at 16% 12%, rgba(255, 237, 185, 0.1), transparent 30%),
-    url("assets/card/card-front-fit.jpg") center / 100% 100% no-repeat;
+  display: grid;
+  grid-template-rows: auto minmax(38px, 1fr) auto auto auto auto;
+  align-content: stretch;
+  background: url("assets/card/card-front-fit.jpg") center / 100% 100% no-repeat;
 }
 
 .back {
   transform: rotateY(180deg);
-  background:
-    linear-gradient(145deg, rgba(8, 5, 3, 0.32), rgba(5, 4, 3, 0.62)),
-    radial-gradient(circle at 50% 20%, rgba(255, 237, 185, 0.08), transparent 28%),
-    url("assets/card/card-back-fit.jpg") center / 100% 100% no-repeat;
+  background: url("assets/card/card-back-fit.jpg") center / 100% 100% no-repeat;
 }
 
 .member-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at 14% 16%, rgba(255, 246, 214, 0.1), transparent 12%),
-    radial-gradient(circle at 74% 58%, rgba(57, 31, 12, 0.16), transparent 10%),
-    repeating-linear-gradient(11deg, rgba(255,255,255,0.028) 0 1px, transparent 1px 7px);
-  mix-blend-mode: overlay;
+  content: none;
 }
 
 .member-card > * {
@@ -494,7 +489,7 @@ form {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 20px;
+  gap: clamp(18px, 3vw, 34px);
 }
 
 .eyebrow {
@@ -505,16 +500,50 @@ form {
   font-family: "JujuHinaMincho", "Yu Mincho", "Hiragino Mincho ProN", serif;
 }
 
-.member-card h1 {
+.member-card h1,
+.username-button {
   margin: 0;
   font-size: clamp(30px, 5.2vw, 66px);
   line-height: 1;
   font-family: "JujuHinaMincho", "Yu Mincho", "Hiragino Mincho ProN", serif;
 }
 
+.username-button {
+  position: relative;
+  display: inline-grid;
+  max-width: min(520px, 49vw);
+  padding: 0 18px 0 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.username-button span {
+  min-width: 0;
+}
+
+.username-font-hina { font-family: "JujuHinaMincho", "Yu Mincho", "Hiragino Mincho ProN", serif; }
+.username-font-taisho { font-family: "JujuTaisho", "JujuHinaMincho", serif; }
+.username-font-igyou { font-family: "JujuIgyou", "JujuHinaMincho", serif; }
+
+.username-font-badge {
+  position: absolute;
+  top: -8px;
+  right: 0;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: #d83e3e;
+  box-shadow: 0 0 0 2px rgba(10, 8, 6, 0.9);
+}
+
 .member-no {
   color: var(--muted);
-  font-size: clamp(16px, 2.2vw, 24px);
+  margin: 12px 0 0;
+  font-size: clamp(14px, 1.8vw, 22px);
   font-family: "JujuHinaMincho", "Yu Mincho", "Hiragino Mincho ProN", serif;
 }
 
@@ -522,7 +551,7 @@ form {
   position: relative;
   display: grid;
   place-items: center;
-  width: clamp(76px, 12vw, 132px);
+  width: clamp(72px, 10.5vw, 118px);
   aspect-ratio: 1;
   border-radius: 50%;
   border: 0;
@@ -577,6 +606,8 @@ form {
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
+  margin-top: clamp(16px, 3vw, 34px);
+  transform: translateX(-18px);
 }
 
 .favorite-relic-badge {
@@ -584,8 +615,8 @@ form {
   display: grid;
   align-content: end;
   justify-items: stretch;
-  width: clamp(88px, 13vw, 138px);
-  height: clamp(76px, 12vw, 122px);
+  width: clamp(82px, 11.5vw, 126px);
+  height: clamp(72px, 10.5vw, 112px);
   min-height: 0;
   padding: 0;
   border: 0;
@@ -661,7 +692,8 @@ form {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-top: clamp(14px, 2.2vw, 24px);
+  width: min(76%, 650px);
+  margin-top: 0;
   min-height: clamp(42px, 6vw, 58px);
   padding: 8px 14px;
   border: 1px solid rgba(225, 199, 131, 0.5);
@@ -768,7 +800,8 @@ form {
   align-items: baseline;
   justify-content: space-between;
   gap: 16px;
-  margin-top: clamp(16px, 2.4vw, 26px);
+  width: min(66%, 560px);
+  margin-top: clamp(12px, 1.8vw, 18px);
   padding: 12px 16px;
   border: 1px solid rgba(225, 199, 131, 0.38);
   border-radius: 7px;
@@ -789,6 +822,7 @@ form {
   display: flex;
   justify-content: space-between;
   gap: 12px;
+  width: min(70%, 600px);
   margin-top: 10px;
   color: var(--muted);
   font-size: clamp(12px, 1.5vw, 16px);
@@ -796,7 +830,7 @@ form {
 }
 .profile-controls {
   position: static;
-  margin-top: clamp(14px, 2vw, 24px);
+  margin-top: clamp(12px, 1.8vw, 18px);
   display: flex;
   align-items: center;
   gap: 18px;
@@ -804,6 +838,23 @@ form {
   color: var(--muted);
 }
 .profile-controls select { min-width: 180px; }
+
+.calendar-icon-button {
+  width: 42px;
+  height: 42px;
+  padding: 4px;
+  border-radius: 8px;
+  display: inline-grid;
+  place-items: center;
+  background: rgba(22, 14, 8, 0.62);
+}
+
+.calendar-icon-button img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 5px;
+}
 
 .stamp-head h2 {
   margin: 0;
@@ -1018,6 +1069,17 @@ form {
   color: var(--muted);
 }
 
+.coupon-staff-note {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 138, 138, 0.34);
+  border-radius: 8px;
+  color: #ffd0d0;
+  background: rgba(130, 24, 24, 0.18);
+  font-weight: 800;
+  text-align: center;
+}
+
 .use-coupon {
   width: 100%;
   margin-top: 14px;
@@ -1055,6 +1117,25 @@ form {
   height: 118px;
   background: #fff;
   border-radius: 6px;
+}
+
+.calendar-admin-form h2,
+.calendar-admin-form p {
+  margin: 0;
+}
+
+.calendar-admin-form p {
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+.calendar-admin-preview {
+  width: min(260px, 100%);
+  max-height: 220px;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.04);
 }
 
 .coupon-grant-row {
@@ -1477,6 +1558,56 @@ form {
   background: rgba(15, 14, 12, 0.97);
 }
 
+.username-editor-modal,
+.calendar-modal {
+  width: min(560px, calc(100vw - 30px));
+  max-height: min(760px, 88svh);
+  overflow: auto;
+  padding: 18px;
+  border: 1px solid rgba(225, 199, 131, 0.5);
+  border-radius: 8px;
+  background: rgba(15, 14, 12, 0.97);
+}
+
+.font-choice-list {
+  display: grid;
+  gap: 10px;
+}
+
+.font-choice {
+  min-height: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  text-align: left;
+}
+
+.font-choice span {
+  color: var(--ink);
+  font-size: 24px;
+}
+
+.font-choice strong {
+  color: var(--muted);
+  font-size: 12px;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", sans-serif;
+}
+
+.font-choice.active {
+  border-color: var(--gold-2);
+  box-shadow: inset 0 0 0 1px rgba(240, 213, 139, 0.45);
+}
+
+.calendar-modal img {
+  display: block;
+  width: 100%;
+  max-height: 68svh;
+  object-fit: contain;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.04);
+}
+
 .modal-head {
   display: flex;
   align-items: center;
@@ -1754,12 +1885,13 @@ th { color: var(--gold-2); }
   }
   .flip-card {
     width: 100%;
-    min-height: 430px;
+    min-height: 490px;
     aspect-ratio: auto;
+    padding: 12px;
   }
   .member-card {
-    inset: -14px 0;
-    padding: 18px;
+    inset: 12px;
+    padding: 28px;
     overflow: hidden;
     box-shadow: 0 18px 42px rgba(0, 0, 0, 0.22), inset 0 0 64px rgba(50, 25, 9, 0.24);
   }
@@ -1768,28 +1900,38 @@ th { color: var(--gold-2); }
     right: -18%;
     bottom: -10%;
   }
-  .card-row { align-items: center; }
+  .front {
+    grid-template-rows: auto minmax(44px, 1fr) auto auto auto auto;
+  }
+  .card-row {
+    align-items: flex-start;
+    gap: 10px;
+  }
   .eyebrow {
     font-size: 11px;
     margin-bottom: 6px;
   }
-  .member-card h1 {
-    font-size: clamp(30px, 9vw, 42px);
+  .member-card h1,
+  .username-button {
+    font-size: clamp(28px, 8.2vw, 38px);
+    max-width: 47vw;
   }
   .member-no {
     font-size: 16px;
     margin: 10px 0 0;
   }
   .avatar {
-    width: 76px;
+    width: 68px;
     font-size: 32px;
   }
   .member-symbols {
-    gap: 8px;
+    gap: 6px;
+    margin-top: 22px;
+    transform: translateX(-10px);
   }
   .favorite-relic-badge {
-    width: 88px;
-    height: 76px;
+    width: 78px;
+    height: 68px;
   }
   .relic-placeholder {
     font-size: 28px;
@@ -1803,7 +1945,8 @@ th { color: var(--gold-2); }
   .relic-picker { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .relic-choice, .relic-choice img { min-height: 104px; }
   .rank-badge {
-    margin-top: 14px;
+    width: calc(100% - 72px);
+    margin-top: 0;
     min-height: 40px;
     padding: 7px 10px;
   }
@@ -1826,6 +1969,7 @@ th { color: var(--gold-2); }
     font-size: 30px;
   }
   .point-strip {
+    width: calc(100% - 78px);
     margin-top: 12px;
     padding: 10px 12px;
   }
@@ -1834,6 +1978,7 @@ th { color: var(--gold-2); }
     font-size: 36px;
   }
   .mini-facts {
+    width: calc(100% - 74px);
     margin-top: 8px;
     font-size: 12px;
     line-height: 1.45;
@@ -1841,8 +1986,12 @@ th { color: var(--gold-2); }
   .profile-controls {
     display: flex;
     gap: 10px;
-    margin-top: 10px;
+    margin-top: 12px;
     font-size: 13px;
+  }
+  .calendar-icon-button {
+    width: 38px;
+    height: 38px;
   }
   .profile-controls select {
     min-width: 150px;

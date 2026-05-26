@@ -201,6 +201,12 @@ create table if not exists public.news_reads (
   unique (user_id, news_post_id)
 );
 
+create table if not exists public.app_settings (
+  key text primary key,
+  value text,
+  updated_at timestamptz not null default now()
+);
+
 create or replace function public.create_staff_news_post(
   p_staff_id text,
   p_password text,
@@ -307,6 +313,73 @@ begin
 end;
 $$;
 
+create or replace function public.staff_grant_coupon_to_user(
+  p_staff_id text,
+  p_password text,
+  p_user_id uuid,
+  p_coupon_id uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  coupon_title text;
+begin
+  if p_staff_id <> 'joujoustaff' or p_password <> 'joujoufirstanniversary' then
+    raise exception 'staff credential is invalid';
+  end if;
+
+  select title into coupon_title
+  from public.coupons
+  where id = p_coupon_id
+    and is_active = true
+    and (expires_at is null or expires_at >= now());
+
+  if coupon_title is null then
+    raise exception '付与できるクーポンが見つかりません。';
+  end if;
+
+  if not exists (select 1 from public.users where id = p_user_id) then
+    raise exception '対象ユーザーが見つかりません。';
+  end if;
+
+  insert into public.user_coupons (user_id, coupon_id, status, used_at)
+  values (p_user_id, p_coupon_id, 'available', null)
+  on conflict (user_id, coupon_id) do update
+  set status = 'available',
+      used_at = null,
+      issued_at = now();
+
+  return jsonb_build_object('granted', true, 'message', coupon_title || 'を付与しました。');
+end;
+$$;
+
+create or replace function public.staff_update_app_setting(
+  p_staff_id text,
+  p_password text,
+  p_key text,
+  p_value text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if p_staff_id <> 'joujoustaff' or p_password <> 'joujoufirstanniversary' then
+    raise exception 'staff credential is invalid';
+  end if;
+
+  insert into public.app_settings (key, value, updated_at)
+  values (p_key, p_value, now())
+  on conflict (key) do update
+  set value = excluded.value,
+      updated_at = now();
+end;
+$$;
+
 grant usage on schema public to anon, authenticated;
 grant usage on sequence public.member_number_seq to authenticated;
 grant select, insert, update, delete on
@@ -325,13 +398,17 @@ grant select, insert, update, delete on
   public.special_card_entries,
   public.user_purchase_permissions,
   public.news_posts,
-  public.news_reads
+  public.news_reads,
+  public.app_settings
 to authenticated;
 
 grant select, insert on public.news_posts to anon;
+grant select on public.app_settings to anon, authenticated;
 grant execute on function public.create_staff_news_post(text, text, text, text, text, text, text) to anon, authenticated;
 grant execute on function public.update_staff_news_post(text, text, uuid, text, text, text, text, text) to anon, authenticated;
 grant execute on function public.delete_staff_news_post(text, text, uuid) to anon, authenticated;
+grant execute on function public.staff_grant_coupon_to_user(text, text, uuid, uuid) to anon, authenticated;
+grant execute on function public.staff_update_app_setting(text, text, text, text) to anon, authenticated;
 
 create or replace function public.is_staff()
 returns boolean
@@ -839,6 +916,7 @@ alter table public.special_card_entries enable row level security;
 alter table public.user_purchase_permissions enable row level security;
 alter table public.news_posts enable row level security;
 alter table public.news_reads enable row level security;
+alter table public.app_settings enable row level security;
 
 drop policy if exists "profiles_select_own_or_staff" on public.app_profiles;
 create policy "profiles_select_own_or_staff" on public.app_profiles
@@ -985,6 +1063,14 @@ for insert with check (user_id = public.current_app_user_id());
 drop policy if exists "news_reads_update_own" on public.news_reads;
 create policy "news_reads_update_own" on public.news_reads
 for update using (user_id = public.current_app_user_id()) with check (user_id = public.current_app_user_id());
+
+drop policy if exists "app_settings_public_read" on public.app_settings;
+create policy "app_settings_public_read" on public.app_settings
+for select using (true);
+
+drop policy if exists "app_settings_staff_write" on public.app_settings;
+create policy "app_settings_staff_write" on public.app_settings
+for all using (public.is_staff()) with check (public.is_staff());
 
 insert into public.member_ranks (rank_number, rank_name, min_point, max_point)
 values
