@@ -424,8 +424,9 @@ form {
 .front {
   transform: rotateY(0deg);
   display: grid;
-  grid-template-rows: auto minmax(56px, 1fr) auto minmax(18px, 0.22fr) auto minmax(18px, 0.14fr);
-  align-content: stretch;
+  grid-template-rows: auto auto auto auto;
+  row-gap: clamp(14px, 2.8vw, 34px);
+  align-content: start;
   color: #4d2d18;
   background: url("assets/card/card-front-fit.jpg") center / 100% 100% no-repeat;
 }
@@ -502,9 +503,23 @@ form {
   min-width: 0;
 }
 
-.username-font-hina { font-family: "JujuHinaMincho", "Yu Mincho", "Hiragino Mincho ProN", serif; }
-.username-font-taisho { font-family: "JujuTaisho", "JujuHinaMincho", serif; }
-.username-font-igyou { font-family: "JujuIgyou", "JujuHinaMincho", serif; }
+.username-font-hina,
+.member-card .username-button.username-font-hina,
+.font-choice.username-font-hina {
+  font-family: "JujuHinaMincho", "Yu Mincho", "Hiragino Mincho ProN", serif;
+}
+
+.username-font-taisho,
+.member-card .username-button.username-font-taisho,
+.font-choice.username-font-taisho {
+  font-family: "JujuTaisho", "JujuHinaMincho", serif;
+}
+
+.username-font-igyou,
+.member-card .username-button.username-font-igyou,
+.font-choice.username-font-igyou {
+  font-family: "JujuIgyou", "JujuHinaMincho", serif;
+}
 
 .username-font-badge {
   position: absolute;
@@ -522,6 +537,7 @@ form {
   margin: 12px 0 0;
   font-size: clamp(14px, 1.8vw, 22px);
   font-family: "JujuHinaMincho", "Yu Mincho", "Hiragino Mincho ProN", serif;
+  text-shadow: 0 1px 1px rgba(71, 42, 20, 0.55), 0 0 8px rgba(255, 239, 196, 0.18);
 }
 
 .avatar {
@@ -669,9 +685,8 @@ form {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  align-self: end;
   width: min(80%, 680px);
-  margin-top: 0;
+  margin-top: clamp(8px, 1.4vw, 18px);
   min-height: clamp(42px, 6vw, 58px);
   padding: 8px 14px;
   border: 1px solid rgba(115, 69, 32, 0.22);
@@ -689,6 +704,7 @@ form {
   color: rgba(111, 69, 34, 0.82);
   font-size: 12px;
   font-family: "JujuHinaMincho", "Yu Mincho", serif;
+  text-shadow: 0 1px 1px rgba(255, 242, 202, 0.48), 0 0 5px rgba(74, 43, 21, 0.28);
 }
 
 .rank-badge strong {
@@ -774,7 +790,6 @@ form {
 
 
 .point-strip {
-  align-self: start;
   display: grid;
   gap: clamp(10px, 1.6vw, 16px);
   width: min(80%, 690px);
@@ -788,6 +803,7 @@ form {
 
 .point-strip span {
   color: rgba(111, 69, 34, 0.84);
+  text-shadow: 0 1px 1px rgba(255, 242, 202, 0.48), 0 0 5px rgba(74, 43, 21, 0.28);
 }
 
 .point-strip strong {
@@ -821,6 +837,7 @@ form {
   color: rgba(111, 69, 34, 0.68);
   font-size: clamp(12px, 1.5vw, 16px);
   font-family: "JujuHinaMincho", "Yu Mincho", "Hiragino Mincho ProN", serif;
+  text-shadow: 0 1px 1px rgba(255, 242, 202, 0.44), 0 0 5px rgba(74, 43, 21, 0.2);
 }
 .profile-controls {
   position: static;
@@ -830,6 +847,7 @@ form {
   gap: clamp(10px, 1.7vw, 18px);
   flex-wrap: wrap;
   color: rgba(111, 69, 34, 0.82);
+  text-shadow: 0 1px 1px rgba(255, 242, 202, 0.48), 0 0 5px rgba(74, 43, 21, 0.26);
 }
 .profile-controls select { min-width: 180px; }
 
@@ -1571,8 +1589,7 @@ form {
 .font-choice {
   min-height: 86px;
   display: grid;
-  align-content: center;
-  gap: 8px;
+  place-items: center start;
   text-align: left;
 }
 
@@ -1581,12 +1598,6 @@ form {
   font-size: clamp(28px, 8vw, 42px);
   line-height: 1;
   overflow-wrap: anywhere;
-}
-
-.font-choice small {
-  color: var(--muted);
-  font-size: 12px;
-  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", sans-serif;
 }
 
 .font-choice.active {
@@ -1607,8 +1618,10 @@ form {
 
 .calendar-modal img {
   display: block;
-  width: 100%;
-  max-height: 68svh;
+  width: auto;
+  max-width: 100%;
+  max-height: calc(88svh - 92px);
+  justify-self: center;
   object-fit: contain;
   border-radius: 8px;
   background: rgba(255,255,255,0.04);
@@ -1908,7 +1921,8 @@ th { color: var(--gold-2); }
     bottom: -10%;
   }
   .front {
-    grid-template-rows: auto minmax(54px, 1fr) auto minmax(16px, 0.18fr) auto minmax(14px, 0.1fr);
+    grid-template-rows: auto auto auto auto;
+    row-gap: 16px;
   }
   .card-row {
     align-items: flex-start;
@@ -1953,7 +1967,7 @@ th { color: var(--gold-2); }
   .relic-choice, .relic-choice img { min-height: 104px; }
   .rank-badge {
     width: calc(100% - 36px);
-    margin-top: 0;
+    margin-top: 4px;
     min-height: 40px;
     padding: 7px 10px;
     border-radius: 16px;

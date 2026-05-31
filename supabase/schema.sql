@@ -207,6 +207,16 @@ create table if not exists public.app_settings (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.user_profile_logs (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  field_name text not null,
+  old_value text,
+  new_value text,
+  changed_by uuid default auth.uid(),
+  changed_at timestamptz not null default now()
+);
+
 create or replace function public.create_staff_news_post(
   p_staff_id text,
   p_password text,
@@ -399,7 +409,8 @@ grant select, insert, update, delete on
   public.user_purchase_permissions,
   public.news_posts,
   public.news_reads,
-  public.app_settings
+  public.app_settings,
+  public.user_profile_logs
 to authenticated;
 
 grant select, insert on public.news_posts to anon;
@@ -446,6 +457,54 @@ security definer
 set search_path = public
 as $$
   select id from public.users where auth_user_id = auth.uid() limit 1;
+$$;
+
+create or replace function public.update_my_username(new_username text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_user_id uuid;
+  previous_username text;
+  cleaned_username text;
+begin
+  if auth.uid() is null then
+    raise exception 'login required';
+  end if;
+
+  cleaned_username := nullif(trim(new_username), '');
+  if cleaned_username is null then
+    raise exception 'username is required';
+  end if;
+
+  current_user_id := public.current_app_user_id();
+  if current_user_id is null then
+    raise exception 'member profile not found';
+  end if;
+
+  select username into previous_username
+  from public.users
+  where id = current_user_id
+  for update;
+
+  update public.users
+  set username = cleaned_username,
+      updated_at = now()
+  where id = current_user_id;
+
+  if coalesce(previous_username, '') is distinct from coalesce(cleaned_username, '') then
+    insert into public.user_profile_logs (user_id, field_name, old_value, new_value, changed_by)
+    values (current_user_id, 'username', previous_username, cleaned_username, auth.uid());
+  end if;
+
+  return jsonb_build_object(
+    'updated', true,
+    'user_id', current_user_id,
+    'username', cleaned_username
+  );
+end;
 $$;
 
 create or replace function public.handle_new_auth_user()
@@ -899,6 +958,7 @@ grant execute on function public.claim_coupon(uuid) to authenticated;
 grant execute on function public.use_user_coupon(uuid) to authenticated;
 grant execute on function public.grant_coupon_to_user(uuid, uuid) to authenticated;
 grant execute on function public.cleanup_my_coupons() to authenticated;
+grant execute on function public.update_my_username(text) to authenticated;
 
 alter table public.app_profiles enable row level security;
 alter table public.users enable row level security;
@@ -917,6 +977,7 @@ alter table public.user_purchase_permissions enable row level security;
 alter table public.news_posts enable row level security;
 alter table public.news_reads enable row level security;
 alter table public.app_settings enable row level security;
+alter table public.user_profile_logs enable row level security;
 
 drop policy if exists "profiles_select_own_or_staff" on public.app_profiles;
 create policy "profiles_select_own_or_staff" on public.app_profiles
@@ -1063,6 +1124,14 @@ for insert with check (user_id = public.current_app_user_id());
 drop policy if exists "news_reads_update_own" on public.news_reads;
 create policy "news_reads_update_own" on public.news_reads
 for update using (user_id = public.current_app_user_id()) with check (user_id = public.current_app_user_id());
+
+drop policy if exists "user_profile_logs_select_own_or_staff" on public.user_profile_logs;
+create policy "user_profile_logs_select_own_or_staff" on public.user_profile_logs
+for select using (user_id = public.current_app_user_id() or public.is_staff());
+
+drop policy if exists "user_profile_logs_insert_own_or_staff" on public.user_profile_logs;
+create policy "user_profile_logs_insert_own_or_staff" on public.user_profile_logs
+for insert with check (user_id = public.current_app_user_id() or public.is_staff());
 
 drop policy if exists "app_settings_public_read" on public.app_settings;
 create policy "app_settings_public_read" on public.app_settings

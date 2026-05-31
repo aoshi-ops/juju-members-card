@@ -161,6 +161,13 @@ function escapeHtml(value) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
+
+function formFromEvent(event) {
+  return event?.target?.matches?.("form")
+    ? event.target
+    : event?.target?.closest?.("form");
+}
+
 const appPath = () => {
   const path = location.pathname;
   const normalize = (value) => (value.length > 1 ? value.replace(/\/$/, "") : value);
@@ -215,6 +222,7 @@ function demoAdminData() {
       { id: "demo-special-1", user_id: "demo-user-2", point_type: "special", point_value: 3, rank_affects: true, source_type: "manual", memo: "おまじない体験コース", created_at: new Date().toISOString() }
     ],
     coupons: [],
+    userLogs: [],
     newsPosts: localNewsPosts()
   };
 }
@@ -633,20 +641,21 @@ async function loadAdminData(userId = null, options = {}) {
 
   const usersQuery = supabase.from("admin_user_summaries").select("*").order("created_at", { ascending: false });
   const includeNews = options.includeNews === true;
-  const [users, visits, listens, points, coupons, purchasePermissions, newsPosts] = await Promise.all([
+  const [users, visits, listens, points, coupons, purchasePermissions, newsPosts, userLogs] = await Promise.all([
     userId ? supabase.from("users").select("*").eq("id", userId).single() : usersQuery,
     userId ? supabase.from("visits").select("*").eq("user_id", userId).order("visited_at", { ascending: false }) : supabase.from("visits").select("*").order("visited_at", { ascending: false }).limit(200),
     userId ? supabase.from("sound_horror_listens").select("*, sound_horrors(title)").eq("user_id", userId).order("listened_at", { ascending: false }) : supabase.from("sound_horror_listens").select("*").order("listened_at", { ascending: false }).limit(200),
     userId ? supabase.from("point_events").select("*").eq("user_id", userId).order("created_at", { ascending: false }) : supabase.from("point_events").select("*").order("created_at", { ascending: false }).limit(200),
     userId ? supabase.from("user_coupons").select("*, coupons(*)").eq("user_id", userId) : supabase.from("coupons").select("*").eq("is_active", true).order("created_at", { ascending: false }),
     optionalQuery(userId ? supabase.from("user_purchase_permissions").select("*").eq("user_id", userId).eq("is_active", true) : supabase.from("user_purchase_permissions").select("*").eq("is_active", true)),
-    includeNews ? optionalQuery(supabase.from("news_posts").select("*").eq("is_published", true).order("published_at", { ascending: false }).limit(100)) : Promise.resolve({ data: [] })
+    includeNews ? optionalQuery(supabase.from("news_posts").select("*").eq("is_published", true).order("published_at", { ascending: false }).limit(100)) : Promise.resolve({ data: [] }),
+    userId ? optionalQuery(supabase.from("user_profile_logs").select("*").eq("user_id", userId).order("changed_at", { ascending: false }).limit(100)) : Promise.resolve({ data: [] })
   ]);
 
-  for (const result of [users, visits, listens, points, coupons, purchasePermissions, newsPosts]) {
+  for (const result of [users, visits, listens, points, coupons, purchasePermissions, newsPosts, userLogs]) {
     if (result.error) throw result.error;
   }
-  return { users: userId ? [users.data] : users.data, visits: visits.data, listens: listens.data, pointEvents: points.data, coupons: coupons.data, purchasePermissions: purchasePermissions.data || [], newsPosts: includeNews ? mergeNewsPosts(newsPosts.data || []) : [] };
+  return { users: userId ? [users.data] : users.data, visits: visits.data, listens: listens.data, pointEvents: points.data, coupons: coupons.data, purchasePermissions: purchasePermissions.data || [], newsPosts: includeNews ? mergeNewsPosts(newsPosts.data || []) : [], userLogs: userLogs.data || [] };
 }
 
 async function handleLogin(event) {
@@ -825,7 +834,9 @@ async function toggleBirthday(checked) {
 
 async function updateUsername(event) {
   event.preventDefault();
-  const form = new FormData(event.currentTarget);
+  const formElement = formFromEvent(event);
+  if (!formElement?.reportValidity?.()) return;
+  const form = new FormData(formElement);
   const username = String(form.get("username") || "").trim();
   try {
     if (!username) throw new Error("\u30e6\u30fc\u30b6\u30fc\u30cd\u30fc\u30e0\u3092\u5165\u529b\u3057\u3066\u304f\u3060\u3055\u3044\u3002");
@@ -833,8 +844,21 @@ async function updateUsername(event) {
     if (!supabase) {
       demo.user.username = username;
     } else {
-      const { error } = await supabase.from("users").update({ username }).eq("id", data.user.id);
-      if (error) throw error;
+      const rpc = await supabase.rpc("update_my_username", { new_username: username });
+      if (rpc.error) {
+        if (!isMissingDbObject(rpc.error)) throw rpc.error;
+        const previousUsername = data.user.username || "";
+        const { error } = await supabase.from("users").update({ username }).eq("id", data.user.id);
+        if (error) throw error;
+        if (previousUsername !== username) {
+          await optionalQuery(supabase.from("user_profile_logs").insert({
+            user_id: data.user.id,
+            field_name: "username",
+            old_value: previousUsername,
+            new_value: username
+          }), null);
+        }
+      }
     }
     state = { ...state, usernameEditor: "font", message: "\u30e6\u30fc\u30b6\u30fc\u30cd\u30fc\u30e0\u3092\u66f4\u65b0\u3057\u307e\u3057\u305f\u3002", error: "" };
   } catch (error) {
@@ -865,7 +889,7 @@ function usernameEditorModal(user, rank, currentFontId) {
   const available = availableUsernameFonts(rank);
   const previewName = escapeHtml(user.username || "\u30e6\u30fc\u30b6\u30fc\u30cd\u30fc\u30e0");
   return html`
-    <div class="modal-backdrop" data-action="close-username-editor">
+    <div class="modal-backdrop">
       <section class="username-editor-modal" data-no-flip>
         <div class="modal-head">
           <h2>${mode === "font" ? "\u30d5\u30a9\u30f3\u30c8\u3092\u9078\u3076" : "\u540d\u524d\u3092\u5909\u66f4"}</h2>
@@ -875,9 +899,8 @@ function usernameEditorModal(user, rank, currentFontId) {
           <div class="font-choice-list">
             ${usernameFontOptions.map((font) => {
               const unlocked = available.some((item) => item.id === font.id);
-              return `<button type="button" class="font-choice ${font.className} ${currentFontId === font.id ? "active" : ""}" data-action="set-username-font" data-font-id="${font.id}" ${unlocked ? "" : "disabled"}>
+              return `<button type="button" class="font-choice ${font.className} ${currentFontId === font.id ? "active" : ""}" data-action="set-username-font" data-font-id="${font.id}" aria-label="${unlocked ? "\u30d5\u30a9\u30f3\u30c8\u3092\u9078\u629e" : font.note}" ${unlocked ? "" : "disabled"}>
                 <span class="font-preview-name">${previewName}</span>
-                <small>${font.label} / ${unlocked ? "\u9078\u629e\u53ef" : font.note}</small>
               </button>`;
             }).join("")}
           </div>
@@ -1404,6 +1427,8 @@ async function grantCoupon(event) {
 
 async function updateCalendarImage(event) {
   event.preventDefault();
+  const formElement = formFromEvent(event);
+  if (!formElement?.reportValidity?.()) return;
   const submitter = event.submitter;
   const submitterText = submitter?.textContent;
   if (submitter) {
@@ -1411,7 +1436,7 @@ async function updateCalendarImage(event) {
     submitter.textContent = "保存中";
   }
   try {
-    const form = new FormData(event.currentTarget);
+    const form = new FormData(formElement);
     const imageUrl = await readImageFileAsDataUrl(form.get("calendar_file"));
     if (!imageUrl) throw new Error("カレンダー画像を選んでください。");
     if (isDemoAdmin() && supabase) {
@@ -2264,6 +2289,10 @@ function pointLabel(type) {
   }[type] || type || "\u30dd\u30a4\u30f3\u30c8";
 }
 
+function userLogTitle(log) {
+  return log?.field_name === "username" ? "\u30e6\u30fc\u30b6\u30fc\u30cd\u30fc\u30e0\u5909\u66f4" : "\u30e6\u30fc\u30b6\u30fc\u60c5\u5831\u5909\u66f4";
+}
+
 function qrUrl(path) {
   return `https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=12&data=${encodeURIComponent(new URL(publicUrl(path), location.origin).href)}`;
 }
@@ -2467,6 +2496,7 @@ async function viewAdminUserDetail() {
     </section>
     <section class="list-section history-box"><h2>来店履歴</h2><div class="history-scroll">${data.visits.length ? data.visits.map((visit) => `<article class="item"><strong>${visitLabel(visit.visit_type)} / ${visit.point_value}pt</strong><span>${yenDate(visit.visited_at)}</span></article>`).join("") : `<p class="empty">来店履歴はまだありません。</p>`}</div></section>
     <section class="list-section history-box"><h2>ポイント履歴</h2><div class="history-scroll">${data.pointEvents.map((p) => `<article class="item"><strong>${p.point_type} / ${p.point_value}pt</strong><span>${p.memo || ""}</span><small>${yenDate(p.created_at)}</small></article>`).join("")}</div></section>
+    <section class="list-section history-box"><h2>ユーザーログ</h2><div class="history-scroll">${(data.userLogs || []).length ? data.userLogs.map((log) => `<article class="item"><strong>${userLogTitle(log)}</strong><span>${escapeHtml(log.old_value || "-")} → ${escapeHtml(log.new_value || "-")}</span><small>${yenDate(log.changed_at)}</small></article>`).join("") : `<p class="empty">ユーザー情報の編集履歴はまだありません。</p>`}</div></section>
   `, true);
 }
 
