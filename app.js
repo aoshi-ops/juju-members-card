@@ -125,8 +125,11 @@ const CALENDAR_IMAGE_STORAGE = "JUJU_CALENDAR_IMAGE";
 const CALENDAR_SETTING_KEY = "calendar_image";
 const usernameFontOptions = [
   { id: "hina", label: "\u3072\u306a\u660e\u671d", note: "\u6a19\u6e96", className: "username-font-hina", minRank: 1 },
+  { id: "zero", label: "\u96f6\u30b4\u30b7\u30c3\u30af", note: "\u30e9\u30f3\u30af2\u3067\u89e3\u653e", className: "username-font-zero", minRank: 2 },
   { id: "taisho", label: "\u5927\u6b63\u6d3b\u5b57", note: "\u30e9\u30f3\u30af3\u3067\u89e3\u653e", className: "username-font-taisho", minRank: 3 },
-  { id: "igyou", label: "\u7570\u5f62\u660e\u671d", note: "\u30e9\u30f3\u30af5\u3067\u89e3\u653e", className: "username-font-igyou", minRank: 5 }
+  { id: "cheese", label: "\u30c1\u30fc\u30ba\u30b4\u30b7\u30c3\u30af", note: "\u30e9\u30f3\u30af3\u3067\u89e3\u653e", className: "username-font-cheese", minRank: 3 },
+  { id: "glitch", label: "\u30b0\u30ea\u30c3\u30c1\u660e\u671d", note: "\u30e9\u30f3\u30af5\u3067\u89e3\u653e", className: "username-font-glitch", minRank: 5 },
+  { id: "enka-dot", label: "\u3048\u3093\u304b\u30c9\u30c3\u30c8\u660e\u671d", note: "\u30e9\u30f3\u30af6\u3067\u89e3\u653e", className: "username-font-enka-dot", minRank: 6 }
 ];
 const cfg = () => ({
   url: localStorage.getItem("SUPABASE_URL") || DEFAULT_SUPABASE_URL,
@@ -2561,11 +2564,9 @@ async function viewAdminPoints() {
 async function viewAdminCoupons() {
   const data = await loadAdminData();
   const coupons = data.coupons || [];
-  const calendarImage = await loadCalendarImage();
   return layout(html`
     ${adminModeBanner()}
     <section class="page-head"><h1>\u30af\u30fc\u30dd\u30f3\u7ba1\u7406</h1><p>\u30af\u30fc\u30dd\u30f3\u306e\u4f5c\u6210\u3001QR\u8868\u793a\u3001\u4f1a\u54e1\u3078\u306e\u76f4\u63a5\u4ed8\u4e0e\u3092\u884c\u3044\u307e\u3059\u3002</p></section>
-    ${calendarAdminForm(calendarImage)}
     <form class="grid-form admin-form" data-form="coupon-create">
       <label>\u30af\u30fc\u30dd\u30f3\u30bf\u30a4\u30c8\u30eb<input name="title" required placeholder="\u4f1a\u54e1\u767b\u9332\u30ad\u30e3\u30f3\u30da\u30fc\u30f3\u30af\u30fc\u30dd\u30f3" /></label>
       <label>\u5185\u5bb9\u8aac\u660e<textarea name="description" rows="3" required placeholder="\u30b5\u30a6\u30f3\u30c9\u30db\u30e9\u30fc\u4e00\u56de\u7121\u6599\uff08\uffe51,000\u4f5c\u54c1\u306e\u307f\u5bfe\u8c61\uff09"></textarea></label>
