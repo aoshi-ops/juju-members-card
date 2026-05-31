@@ -889,12 +889,21 @@ form {
   margin-top: 0;
   display: flex;
   align-items: center;
-  gap: clamp(10px, 1.7vw, 18px);
+  gap: clamp(8px, 1.4vw, 14px);
   flex-wrap: wrap;
   color: rgba(84, 50, 23, 0.9);
   text-shadow: 0 1px 1px rgba(255, 242, 202, 0.42), 0 0 5px rgba(54, 30, 14, 0.34);
 }
 .profile-controls select { min-width: 180px; }
+
+.birthday-toggle {
+  gap: 0;
+}
+
+.birthday-toggle input {
+  width: 14px;
+  height: 14px;
+}
 
 .calendar-icon-button {
   width: 42px;
@@ -2057,9 +2066,13 @@ th { color: var(--gold-2); }
   }
   .profile-controls {
     display: flex;
-    gap: 10px;
+    gap: 8px;
     margin-top: 0;
     font-size: 13px;
+  }
+  .birthday-toggle input {
+    width: 13px;
+    height: 13px;
   }
   .calendar-icon-button {
     width: 40px;

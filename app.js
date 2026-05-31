@@ -658,13 +658,17 @@ async function loadAdminData(userId = null, options = {}) {
 
   const usersQuery = supabase.from("admin_user_summaries").select("*").order("created_at", { ascending: false });
   const includeNews = options.includeNews === true;
+  const includeUsers = options.includeUsers !== false;
+  const includeActivity = options.includeActivity !== false;
+  const includeCoupons = options.includeCoupons !== false;
+  const includePurchasePermissions = options.includePurchasePermissions !== false;
   const [users, visits, listens, points, coupons, purchasePermissions, newsPosts, userLogs] = await Promise.all([
-    userId ? supabase.from("users").select("*").eq("id", userId).single() : usersQuery,
-    userId ? supabase.from("visits").select("*").eq("user_id", userId).order("visited_at", { ascending: false }) : supabase.from("visits").select("*").order("visited_at", { ascending: false }).limit(200),
-    userId ? supabase.from("sound_horror_listens").select("*, sound_horrors(title)").eq("user_id", userId).order("listened_at", { ascending: false }) : supabase.from("sound_horror_listens").select("*").order("listened_at", { ascending: false }).limit(200),
-    userId ? supabase.from("point_events").select("*").eq("user_id", userId).order("created_at", { ascending: false }) : supabase.from("point_events").select("*").order("created_at", { ascending: false }).limit(200),
-    userId ? supabase.from("user_coupons").select("*, coupons(*)").eq("user_id", userId) : supabase.from("coupons").select("*").eq("is_active", true).order("created_at", { ascending: false }),
-    optionalQuery(userId ? supabase.from("user_purchase_permissions").select("*").eq("user_id", userId).eq("is_active", true) : supabase.from("user_purchase_permissions").select("*").eq("is_active", true)),
+    includeUsers ? (userId ? supabase.from("users").select("*").eq("id", userId).single() : usersQuery) : Promise.resolve({ data: userId ? null : [], error: null }),
+    includeActivity ? (userId ? supabase.from("visits").select("*").eq("user_id", userId).order("visited_at", { ascending: false }) : supabase.from("visits").select("*").order("visited_at", { ascending: false }).limit(200)) : Promise.resolve({ data: [], error: null }),
+    includeActivity ? (userId ? supabase.from("sound_horror_listens").select("*, sound_horrors(title)").eq("user_id", userId).order("listened_at", { ascending: false }) : supabase.from("sound_horror_listens").select("*").order("listened_at", { ascending: false }).limit(200)) : Promise.resolve({ data: [], error: null }),
+    includeActivity ? (userId ? supabase.from("point_events").select("*").eq("user_id", userId).order("created_at", { ascending: false }) : supabase.from("point_events").select("*").order("created_at", { ascending: false }).limit(200)) : Promise.resolve({ data: [], error: null }),
+    includeCoupons ? (userId ? supabase.from("user_coupons").select("*, coupons(*)").eq("user_id", userId) : supabase.from("coupons").select("*").eq("is_active", true).order("created_at", { ascending: false })) : Promise.resolve({ data: [], error: null }),
+    includePurchasePermissions ? optionalQuery(userId ? supabase.from("user_purchase_permissions").select("*").eq("user_id", userId).eq("is_active", true) : supabase.from("user_purchase_permissions").select("*").eq("is_active", true)) : Promise.resolve({ data: [], error: null }),
     includeNews ? optionalQuery(supabase.from("news_posts").select("*").eq("is_published", true).order("published_at", { ascending: false }).limit(100)) : Promise.resolve({ data: [] }),
     userId ? optionalQuery(supabase.from("user_profile_logs").select("*").eq("user_id", userId).order("changed_at", { ascending: false }).limit(100)) : Promise.resolve({ data: [] })
   ]);
@@ -672,7 +676,7 @@ async function loadAdminData(userId = null, options = {}) {
   for (const result of [users, visits, listens, points, coupons, purchasePermissions, newsPosts, userLogs]) {
     if (result.error) throw result.error;
   }
-  return { users: userId ? [users.data] : users.data, visits: visits.data, listens: listens.data, pointEvents: points.data, coupons: coupons.data, purchasePermissions: purchasePermissions.data || [], newsPosts: includeNews ? mergeNewsPosts(newsPosts.data || []) : [], userLogs: userLogs.data || [] };
+  return { users: userId ? (users.data ? [users.data] : []) : users.data, visits: visits.data, listens: listens.data, pointEvents: points.data, coupons: coupons.data, purchasePermissions: purchasePermissions.data || [], newsPosts: includeNews ? mergeNewsPosts(newsPosts.data || []) : [], userLogs: userLogs.data || [] };
 }
 
 async function handleLogin(event) {
@@ -843,8 +847,13 @@ async function toggleBirthday(checked) {
     render();
     return;
   }
-  const data = await loadMyData();
-  const { error } = await supabase.from("users").update({ birthday_visible: checked }).eq("id", data.user.id);
+  const current = await currentSession();
+  if (!current?.user) {
+    state.error = "ログインが必要です。";
+    render();
+    return;
+  }
+  const { error } = await supabase.from("users").update({ birthday_visible: checked }).eq("auth_user_id", current.user.id);
   if (error) state.error = appErrorMessage(error);
   render();
 }
@@ -1984,7 +1993,7 @@ async function viewMemberCard() {
             </div>
             <div class="profile-controls" data-no-flip>
               <span>\u8a95\u751f\u65e5 ${birthday}</span>
-              <label class="check"><input type="checkbox" data-action="birthday" ${data.user.birthday_visible ? "checked" : ""} /> \u8a95\u751f\u65e5\u8868\u793a</label>
+              <label class="check birthday-toggle"><input type="checkbox" data-action="birthday" aria-label="\u8a95\u751f\u65e5\u3092\u8868\u793a" ${data.user.birthday_visible ? "checked" : ""} /></label>
               <button class="calendar-icon-button" type="button" data-action="open-calendar-modal" data-no-flip aria-label="\u55b6\u696d\u65e5\u30ab\u30ec\u30f3\u30c0\u30fc\u3092\u8868\u793a"><img src="assets/calendar-icon.jpg" alt="" aria-hidden="true" /></button>
             </div>
           </div>
@@ -2255,7 +2264,7 @@ async function viewNews() {
 }
 
 async function viewAdminNews() {
-  const data = await loadAdminData(null, { includeNews: true });
+  const data = await loadAdminData(null, { includeUsers: false, includeActivity: false, includeCoupons: false, includePurchasePermissions: false, includeNews: true });
   const posts = data.newsPosts || [];
   return layout(html`
     ${adminModeBanner()}
@@ -2412,7 +2421,7 @@ function pieChart(segments) {
 }
 
 async function viewAdminDashboard() {
-  const data = await loadAdminData();
+  const data = await loadAdminData(null, { includeActivity: false, includeCoupons: false, includePurchasePermissions: false });
   const mode = state.analyticsMode || "gender";
   const segments = adminAnalyticsSegments(data, mode);
   return layout(html`
@@ -2431,7 +2440,7 @@ async function viewAdminDashboard() {
 }
 
 async function viewAdminUsers() {
-  const data = await loadAdminData();
+  const data = await loadAdminData(null, { includeActivity: false, includeCoupons: false, includePurchasePermissions: false });
   const query = (state.adminUserSearch || "").trim().toLowerCase();
   const users = query ? data.users.filter((user) => adminUserMatches(user, query)) : data.users;
   return layout(html`
@@ -2518,7 +2527,7 @@ async function viewAdminUserDetail() {
 }
 
 async function viewAdminVisits() {
-  const data = await loadAdminData();
+  const data = await loadAdminData(null, { includeCoupons: false, includePurchasePermissions: false });
   const userById = Object.fromEntries((data.users || []).map((user) => [user.id, user]));
   return layout(html`
     ${adminModeBanner()}
@@ -2560,7 +2569,7 @@ async function viewAdminQr() {
 }
 
 async function viewAdminPoints() {
-  const data = await loadAdminData();
+  const data = await loadAdminData(null, { includeActivity: false, includeCoupons: false, includePurchasePermissions: false });
   return layout(html`
     ${adminModeBanner()}
     <section class="page-head"><h1>特別ポイント付与</h1><p>admin権限を持つアカウントだけが実行できます。</p></section>
@@ -2576,7 +2585,7 @@ async function viewAdminPoints() {
 }
 
 async function viewAdminCoupons() {
-  const data = await loadAdminData();
+  const data = await loadAdminData(null, { includeActivity: false, includePurchasePermissions: false });
   const coupons = data.coupons || [];
   return layout(html`
     ${adminModeBanner()}
