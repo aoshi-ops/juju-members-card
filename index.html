@@ -10,16 +10,16 @@
       const base = location.hostname.endsWith("github.io") && first ? `/${first}/` : "/";
       document.write(`<base href="${base}">`);
     </script>
-    <link id="app-manifest" rel="manifest" href="manifest.json?v=0.2.48" />
+    <link id="app-manifest" rel="manifest" href="manifest.json?v=0.2.49" />
     <script>
       if (location.pathname.includes("/admin")) {
-        document.getElementById("app-manifest")?.setAttribute("href", "manifest-admin.json?v=0.2.48");
+        document.getElementById("app-manifest")?.setAttribute("href", "manifest-admin.json?v=0.2.49");
       }
     </script>
-    <link rel="stylesheet" href="styles.css?v=0.2.48" />
+    <link rel="stylesheet" href="styles.css?v=0.2.49" />
   </head>
   <body>
     <div id="app"></div>
-    <script type="module" src="app.js?v=0.2.48"></script>
+    <script type="module" src="app.js?v=0.2.49"></script>
   </body>
 </html>

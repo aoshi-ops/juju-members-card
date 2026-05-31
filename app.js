@@ -124,12 +124,12 @@ const NEWS_LOCAL_STORAGE = "JUJU_LOCAL_NEWS_POSTS";
 const CALENDAR_IMAGE_STORAGE = "JUJU_CALENDAR_IMAGE";
 const CALENDAR_SETTING_KEY = "calendar_image";
 const usernameFontOptions = [
-  { id: "hina", label: "\u3072\u306a\u660e\u671d", note: "\u6a19\u6e96", className: "username-font-hina", minRank: 1 },
-  { id: "zero", label: "\u96f6\u30b4\u30b7\u30c3\u30af", note: "\u30e9\u30f3\u30af2\u3067\u89e3\u653e", className: "username-font-zero", minRank: 2 },
-  { id: "taisho", label: "\u5927\u6b63\u6d3b\u5b57", note: "\u30e9\u30f3\u30af3\u3067\u89e3\u653e", className: "username-font-taisho", minRank: 3 },
-  { id: "cheese", label: "\u30c1\u30fc\u30ba\u30b4\u30b7\u30c3\u30af", note: "\u30e9\u30f3\u30af3\u3067\u89e3\u653e", className: "username-font-cheese", minRank: 3 },
-  { id: "glitch", label: "\u30b0\u30ea\u30c3\u30c1\u660e\u671d", note: "\u30e9\u30f3\u30af5\u3067\u89e3\u653e", className: "username-font-glitch", minRank: 5 },
-  { id: "enka-dot", label: "\u3048\u3093\u304b\u30c9\u30c3\u30c8\u660e\u671d", note: "\u30e9\u30f3\u30af6\u3067\u89e3\u653e", className: "username-font-enka-dot", minRank: 6 }
+  { id: "hina", label: "\u3072\u306a\u660e\u671d", note: "\u6a19\u6e96", className: "username-font-hina", cssStack: "\"JujuHinaMincho\", \"Yu Mincho\", serif", minRank: 1 },
+  { id: "zero", label: "\u96f6\u30b4\u30b7\u30c3\u30af", note: "\u30e9\u30f3\u30af2\u3067\u89e3\u653e", className: "username-font-zero", cssStack: "\"JujuZeroGothic\", \"JujuHinaMincho\", serif", minRank: 2 },
+  { id: "taisho", label: "\u5927\u6b63\u6d3b\u5b57", note: "\u30e9\u30f3\u30af3\u3067\u89e3\u653e", className: "username-font-taisho", cssStack: "\"JujuTaisho\", \"JujuHinaMincho\", serif", minRank: 3 },
+  { id: "cheese", label: "\u30c1\u30fc\u30ba\u30b4\u30b7\u30c3\u30af", note: "\u30e9\u30f3\u30af3\u3067\u89e3\u653e", className: "username-font-cheese", cssStack: "\"JujuCheeseGothic\", \"JujuHinaMincho\", serif", minRank: 3 },
+  { id: "glitch", label: "\u30b0\u30ea\u30c3\u30c1\u660e\u671d", note: "\u30e9\u30f3\u30af5\u3067\u89e3\u653e", className: "username-font-glitch", cssStack: "\"JujuGlitchMincho\", \"JujuHinaMincho\", serif", minRank: 5 },
+  { id: "enka-dot", label: "\u3048\u3093\u304b\u30c9\u30c3\u30c8\u660e\u671d", note: "\u30e9\u30f3\u30af6\u3067\u89e3\u653e", className: "username-font-enka-dot", cssStack: "\"JujuEnkaDotMincho\", \"JujuHinaMincho\", serif", minRank: 6 }
 ];
 const cfg = () => ({
   url: localStorage.getItem("SUPABASE_URL") || DEFAULT_SUPABASE_URL,
@@ -380,6 +380,20 @@ function currentUsernameFont(user, rank) {
 
 function usernameFontClass(fontId) {
   return usernameFontOptions.find((font) => font.id === fontId)?.className || "username-font-hina";
+}
+
+function usernameFontCssStack(fontId) {
+  return usernameFontOptions.find((font) => font.id === fontId)?.cssStack || usernameFontOptions[0].cssStack;
+}
+
+async function ensureUsernameFontLoaded(fontId, sampleText = "\u30e6\u30fc\u30b6\u30fc\u30cd\u30fc\u30e0") {
+  if (!document.fonts?.load) return;
+  const stack = usernameFontCssStack(fontId).split(",")[0].trim();
+  try {
+    await document.fonts.load(`42px ${stack}`, sampleText);
+  } catch {
+    // Font loading failure should not block the user's choice.
+  }
 }
 
 function hasNewUsernameFonts(user, rank) {
@@ -878,6 +892,7 @@ async function setUsernameFont(fontId) {
     if (!available.some((font) => font.id === fontId)) {
       throw new Error("\u3053\u306e\u30d5\u30a9\u30f3\u30c8\u306f\u307e\u3060\u9078\u3079\u307e\u305b\u3093\u3002");
     }
+    await ensureUsernameFontLoaded(fontId, data.user.username || "");
     localStorage.setItem(usernameFontStorageKey(data.user.id), fontId);
     markUsernameFontsSeen(data.user, rank);
     state = { ...state, usernameEditor: null, message: "\u30d5\u30a9\u30f3\u30c8\u3092\u66f4\u65b0\u3057\u307e\u3057\u305f\u3002", error: "" };
@@ -900,9 +915,8 @@ function usernameEditorModal(user, rank, currentFontId) {
         </div>
         ${mode === "font" ? `
           <div class="font-choice-list">
-            ${usernameFontOptions.map((font) => {
-              const unlocked = available.some((item) => item.id === font.id);
-              return `<button type="button" class="font-choice ${font.className} ${currentFontId === font.id ? "active" : ""}" data-action="set-username-font" data-font-id="${font.id}" aria-label="${unlocked ? "\u30d5\u30a9\u30f3\u30c8\u3092\u9078\u629e" : font.note}" ${unlocked ? "" : "disabled"}>
+            ${available.map((font) => {
+              return `<button type="button" class="font-choice ${font.className} ${currentFontId === font.id ? "active" : ""}" style="font-family:${font.cssStack}" data-action="set-username-font" data-font-id="${font.id}" aria-label="\u30d5\u30a9\u30f3\u30c8\u3092\u9078\u629e">
                 <span class="font-preview-name">${previewName}</span>
               </button>`;
             }).join("")}
@@ -1936,6 +1950,7 @@ async function viewMemberCard() {
       <button class="primary compact-action" data-link="/scan">QR\u3092\u8aad\u307f\u53d6\u308b</button>
       <button class="compact-action save-action" type="button" data-action="save-card-image" aria-label="\u4f1a\u54e1\u8a3c\u3092\u4fdd\u5b58">\u4fdd\u5b58</button>
     </section>
+    ${usernameNewFonts ? `<button type="button" class="font-unlock-banner" data-action="show-username-fonts">新しいフォントが選択できるようになりました</button>` : ""}
     <section class="card-stage">
       <div class="background-noise" aria-hidden="true"></div>
       <div class="flip-card" data-action="flip-card">
@@ -1944,9 +1959,8 @@ async function viewMemberCard() {
           <div class="card-row">
             <div>
               <p class="eyebrow">MEMBERS CARD</p>
-              <button type="button" class="username-button ${usernameFontClass(usernameFontId)}" data-action="open-username-editor" data-no-flip>
+              <button type="button" class="username-button ${usernameFontClass(usernameFontId)}" style="font-family:${usernameFontCssStack(usernameFontId)}" data-action="open-username-editor" data-no-flip>
                 <span>${data.user.username}</span>
-                ${usernameNewFonts ? `<i class="username-font-badge" aria-label="新しいフォント"></i>` : ""}
               </button>
               <p class="member-no">${data.user.member_number}</p>
             </div>
@@ -2742,8 +2756,15 @@ document.addEventListener("click", (event) => {
     render();
   }
   if (action.dataset.action === "show-username-fonts") {
-    state = { ...state, usernameEditor: "font" };
-    render();
+    loadMyData().then((data) => {
+      const rank = rankFor(sumRankPoints(data.pointEvents));
+      markUsernameFontsSeen(data.user, rank);
+      state = { ...state, usernameEditor: "font" };
+      render();
+    }).catch((error) => {
+      state = { ...state, error: appErrorMessage(error) };
+      render();
+    });
   }
   if (action.dataset.action === "set-username-font") setUsernameFont(action.dataset.fontId);
   if (action.dataset.action === "open-calendar-modal") {
