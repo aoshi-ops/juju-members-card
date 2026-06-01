@@ -100,6 +100,7 @@ let qrScanning = false;
 let iconDrag = null;
 let jsQrDecoder = null;
 let qrDetecting = false;
+let qrSessionConsumed = false;
 let lastQrValue = "";
 let lastQrAt = 0;
 
@@ -1073,38 +1074,50 @@ function cropIconToDataUrl(editor) {
   });
 }
 
-async function recordVisit(type) {
+async function recordVisit(type, options = {}) {
   try {
     if (!supabase) throw new Error("デモ表示では記録できません。Supabase 接続後に試してください。");
     const { data, error } = await supabase.rpc("record_visit", { visit_kind: type });
     if (error) throw error;
-    state = { busy: false, message: data.message, error: "" };
+    state = { ...state, busy: false, message: data.message, error: "", qrProcessingKey: "" };
   } catch (error) {
-    state = { busy: false, message: "", error: appErrorMessage(error) };
+    state = { ...state, busy: false, message: "", error: appErrorMessage(error), qrProcessingKey: "" };
+  }
+  if (options.returnToMemberCard) {
+    navigate("/member-card");
+    return;
   }
   render();
 }
 
-async function recordSoundHorror(id) {
+async function recordSoundHorror(id, options = {}) {
   try {
     if (!supabase) throw new Error("デモ表示では記録できません。Supabase 接続後に試してください。");
     const { data, error } = await supabase.rpc("record_sound_horror", { horror_id: id });
     if (error) throw error;
-    state = { busy: false, message: data.message, error: "" };
+    state = { ...state, busy: false, message: data.message, error: "", qrProcessingKey: "" };
   } catch (error) {
-    state = { busy: false, message: "", error: appErrorMessage(error) };
+    state = { ...state, busy: false, message: "", error: appErrorMessage(error), qrProcessingKey: "" };
+  }
+  if (options.returnToMemberCard) {
+    navigate("/member-card");
+    return;
   }
   render();
 }
 
-async function recordSpecialExperience(code) {
+async function recordSpecialExperience(code, options = {}) {
   try {
     if (!supabase) throw new Error("デモ表示では記録できません。Supabase 接続後に試してください。");
     const { data, error } = await supabase.rpc("record_special_experience", { experience_code: code });
     if (error) throw error;
-    state = { busy: false, message: data.message, error: "" };
+    state = { ...state, busy: false, message: data.message, error: "", qrProcessingKey: "" };
   } catch (error) {
-    state = { busy: false, message: "", error: appErrorMessage(error) };
+    state = { ...state, busy: false, message: "", error: appErrorMessage(error), qrProcessingKey: "" };
+  }
+  if (options.returnToMemberCard) {
+    navigate("/member-card");
+    return;
   }
   render();
 }
@@ -1126,6 +1139,7 @@ async function startQrScanner() {
     const video = document.querySelector('[data-role="qr-video"]');
     if (!video) return;
     stopQrScanner();
+    qrSessionConsumed = false;
     state = { ...state, message: "QRを枠内に入れてください。読み取ると自動で進みます。", error: "" };
     qrStream = await navigator.mediaDevices.getUserMedia({
       video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
@@ -1171,10 +1185,14 @@ async function startQrScanner() {
             }
           }
           if (value) {
+            if (qrSessionConsumed) return;
+            qrSessionConsumed = true;
+            qrScanning = false;
             const now = Date.now();
             if (value === lastQrValue && now - lastQrAt < 5000) {
-              qrDetecting = false;
-              qrFrame = requestAnimationFrame(scan);
+              stopQrScanner();
+              state = { ...state, message: "QRは読み取り済みです。会員証へ戻ります。", error: "" };
+              navigate("/member-card");
               return;
             }
             lastQrValue = value;
@@ -1273,9 +1291,9 @@ function autoQrAction(key, action, label = "記録しています") {
   if (!state.qrDoneKeys.has(autoKey)) {
     state.qrDoneKeys.add(autoKey);
     state = { ...state, qrProcessingKey: autoKey, busy: true, message: "", error: "" };
-    setTimeout(() => {
+    setTimeout(async () => {
       if (state.qrProcessingKey !== autoKey) return;
-      action();
+      await action();
     }, 0);
   }
   return layout(html`
@@ -2142,18 +2160,18 @@ function couponModal(userCoupon) {
 async function viewQrVisit() {
   const type = new URLSearchParams(location.search).get("type") === "second_floor" ? "second_floor" : "first_floor";
   const label = type === "second_floor" ? "2F visit" : "1F visit";
-  return autoQrAction(`visit:${type}`, () => recordVisit(type), `${label} recording`);
+  return autoQrAction(`visit:${type}`, () => recordVisit(type, { returnToMemberCard: true }), `${label} recording`);
 }
 
 async function viewQrSound() {
   const id = decodeURIComponent(location.pathname.split("/").pop());
-  return autoQrAction(`sound:${id}`, () => recordSoundHorror(id), "Sound horror recording");
+  return autoQrAction(`sound:${id}`, () => recordSoundHorror(id, { returnToMemberCard: true }), "Sound horror recording");
 }
 
 async function viewQrSpecial() {
   const code = decodeURIComponent(appPath().split("/").pop());
   const experience = specialExperiences.find((item) => item.code === code) || specialExperiences[0];
-  return autoQrAction(`special:${experience.code}`, () => recordSpecialExperience(experience.code), "Experience recording");
+  return autoQrAction(`special:${experience.code}`, () => recordSpecialExperience(experience.code, { returnToMemberCard: true }), "Experience recording");
 }
 
 async function viewQrCoupon() {
