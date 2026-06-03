@@ -98,6 +98,8 @@ let qrStream = null;
 let qrFrame = 0;
 let qrScanning = false;
 let iconDrag = null;
+let iconPointers = new Map();
+let iconPinch = null;
 let jsQrDecoder = null;
 let qrDetecting = false;
 let qrSessionConsumed = false;
@@ -991,7 +993,7 @@ async function updateIcon(file) {
 
   const reader = new FileReader();
   reader.onload = async () => {
-    state = { ...state, iconEditor: { src: String(reader.result), x: 50, y: 50, zoom: 1.15 }, error: "" };
+    state = { ...state, iconEditor: { src: String(reader.result), x: 0, y: 0, zoom: 1.15 }, error: "" };
     render();
   };
   reader.onerror = () => {
@@ -1009,17 +1011,21 @@ function iconEditorModal(editor) {
           <h2>アイコン位置調整</h2>
           <button type="button" data-action="close-icon-editor">閉じる</button>
         </div>
-        <div class="icon-crop-stage" data-action="icon-crop-drag" style="--icon-x:${editor.x}%;--icon-y:${editor.y}%;--icon-zoom:${editor.zoom};">
+        <div class="icon-crop-body">
+          <div class="icon-crop-stage" data-action="icon-crop-drag" style="--icon-x:${editor.x}%;--icon-y:${editor.y}%;--icon-zoom:${editor.zoom};">
           <img src="${editor.src}" alt="アイコン位置調整画像" />
           <div class="icon-crop-mask" aria-hidden="true"></div>
           <div class="icon-crop-circle" aria-hidden="true"></div>
+          </div>
+          <div class="crop-controls">
+            <label>左右<input type="range" min="-45" max="45" value="${editor.x}" data-action="icon-crop-x" /></label>
+            <label>上下<input type="range" min="-45" max="45" value="${editor.y}" data-action="icon-crop-y" /></label>
+            <label>拡大<input type="range" min="1" max="3" step="0.05" value="${editor.zoom}" data-action="icon-crop-zoom" /></label>
+          </div>
         </div>
-        <div class="crop-controls">
-          <label>左右<input type="range" min="0" max="100" value="${editor.x}" data-action="icon-crop-x" /></label>
-          <label>上下<input type="range" min="0" max="100" value="${editor.y}" data-action="icon-crop-y" /></label>
-          <label>拡大<input type="range" min="1" max="3" step="0.05" value="${editor.zoom}" data-action="icon-crop-zoom" /></label>
+        <div class="icon-editor-actions">
+          <button class="primary" type="button" data-action="save-cropped-icon">この位置で保存</button>
         </div>
-        <button class="primary" type="button" data-action="save-cropped-icon">この位置で保存</button>
       </section>
     </div>
   `;
@@ -1027,8 +1033,9 @@ function iconEditorModal(editor) {
 
 function setIconEditorValue(key, value) {
   if (!state.iconEditor) return;
-  state = { ...state, iconEditor: { ...state.iconEditor, [key]: Number(value) } };
-  render();
+  const nextValue = key === "zoom" ? clampIconZoom(value) : clampIconOffset(value);
+  state.iconEditor = { ...state.iconEditor, [key]: nextValue };
+  updateIconEditorPreview();
 }
 
 async function saveCroppedIcon() {
@@ -1062,10 +1069,8 @@ function cropIconToDataUrl(editor) {
       const scale = Math.max(size / image.width, size / image.height) * editor.zoom;
       const drawW = image.width * scale;
       const drawH = image.height * scale;
-      const minX = size - drawW;
-      const minY = size - drawH;
-      const x = drawW > size ? minX * (editor.x / 100) : (size - drawW) / 2;
-      const y = drawH > size ? minY * (editor.y / 100) : (size - drawH) / 2;
+      const x = (size - drawW) / 2 + drawW * ((Number(editor.x) || 0) / 100);
+      const y = (size - drawH) / 2 + drawH * ((Number(editor.y) || 0) / 100);
       ctx.drawImage(image, x, y, drawW, drawH);
       resolve(canvas.toDataURL("image/jpeg", 0.88));
     };
@@ -1998,6 +2003,7 @@ async function viewMemberCard() {
               </label>
               <button type="button" class="favorite-relic-badge ${favoriteImage ? "has-image" : ""}" data-action="open-relic-picker" data-relic-label="${favoriteLabel}" data-no-flip>
                 ${favoriteImage ? `<img src="${favoriteImage}" alt="${favoriteLabel}" />` : `<span class="relic-placeholder">?</span>`}
+                <span class="favorite-relic-ribbon" aria-hidden="true">推し呪物</span>
                 <strong>${favoriteLabel}</strong>
               </button>
             </div>
@@ -2710,34 +2716,87 @@ function paintShell(markup) {
   }
 }
 
+function clampIconOffset(value) {
+  return Math.min(45, Math.max(-45, Number(value) || 0));
+}
+
+function clampIconZoom(value) {
+  return Math.min(3, Math.max(1, Number(value) || 1));
+}
+
+function updateIconEditorPreview() {
+  if (!state.iconEditor) return;
+  const stage = document.querySelector(".icon-crop-stage");
+  if (stage) {
+    stage.style.setProperty("--icon-x", `${state.iconEditor.x}%`);
+    stage.style.setProperty("--icon-y", `${state.iconEditor.y}%`);
+    stage.style.setProperty("--icon-zoom", state.iconEditor.zoom);
+  }
+  const xInput = document.querySelector('[data-action="icon-crop-x"]');
+  const yInput = document.querySelector('[data-action="icon-crop-y"]');
+  const zoomInput = document.querySelector('[data-action="icon-crop-zoom"]');
+  if (xInput) xInput.value = state.iconEditor.x;
+  if (yInput) yInput.value = state.iconEditor.y;
+  if (zoomInput) zoomInput.value = state.iconEditor.zoom;
+}
+
+function pointerDistance(a, b) {
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
 function startIconCropDrag(event, stage = event.currentTarget) {
   if (!state.iconEditor) return;
   event.preventDefault();
-  iconDrag = {
-    rect: stage.getBoundingClientRect(),
-    startX: event.clientX,
-    startY: event.clientY,
-    x: state.iconEditor.x,
-    y: state.iconEditor.y
-  };
+  iconPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  const points = [...iconPointers.values()];
+  if (points.length >= 2) {
+    iconPinch = {
+      distance: pointerDistance(points[0], points[1]),
+      zoom: state.iconEditor.zoom
+    };
+    iconDrag = null;
+  } else {
+    iconPinch = null;
+    iconDrag = {
+      pointerId: event.pointerId,
+      rect: stage.getBoundingClientRect(),
+      startX: event.clientX,
+      startY: event.clientY,
+      x: state.iconEditor.x,
+      y: state.iconEditor.y
+    };
+  }
   stage.setPointerCapture?.(event.pointerId);
 }
 
 function moveIconCropDrag(event) {
-  if (!iconDrag || !state.iconEditor) return;
-  const x = Math.min(100, Math.max(0, iconDrag.x - ((event.clientX - iconDrag.startX) / iconDrag.rect.width) * 100));
-  const y = Math.min(100, Math.max(0, iconDrag.y - ((event.clientY - iconDrag.startY) / iconDrag.rect.height) * 100));
-  state = { ...state, iconEditor: { ...state.iconEditor, x, y } };
-  const stage = document.querySelector(".icon-crop-stage");
-  if (stage) {
-    stage.style.setProperty("--icon-x", `${x}%`);
-    stage.style.setProperty("--icon-y", `${y}%`);
+  if (!state.iconEditor) return;
+  if (iconPointers.has(event.pointerId)) {
+    iconPointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
   }
+  if (iconPinch && iconPointers.size >= 2) {
+    const points = [...iconPointers.values()];
+    const nextDistance = pointerDistance(points[0], points[1]);
+    if (iconPinch.distance > 0) {
+      state.iconEditor = {
+        ...state.iconEditor,
+        zoom: Number(clampIconZoom(iconPinch.zoom * (nextDistance / iconPinch.distance)).toFixed(2))
+      };
+      updateIconEditorPreview();
+    }
+    return;
+  }
+  if (!iconDrag || event.pointerId !== iconDrag.pointerId) return;
+  const x = clampIconOffset(iconDrag.x + ((event.clientX - iconDrag.startX) / iconDrag.rect.width) * 100);
+  const y = clampIconOffset(iconDrag.y + ((event.clientY - iconDrag.startY) / iconDrag.rect.height) * 100);
+  state.iconEditor = { ...state.iconEditor, x, y };
+  updateIconEditorPreview();
 }
 
-function endIconCropDrag() {
-  iconDrag = null;
-  if (state.iconEditor) render();
+function endIconCropDrag(event) {
+  if (event?.pointerId != null) iconPointers.delete(event.pointerId);
+  if (iconPointers.size < 2) iconPinch = null;
+  if (iconPointers.size === 0) iconDrag = null;
 }
 
 document.addEventListener("click", (event) => {
@@ -2855,6 +2914,9 @@ document.addEventListener("click", (event) => {
   }
   if (action.dataset.action === "close-icon-editor") {
     if (event.target.closest(".icon-editor-modal") && !event.target.closest("button")) return;
+    iconDrag = null;
+    iconPinch = null;
+    iconPointers.clear();
     state = { ...state, iconEditor: null };
     render();
   }

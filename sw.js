@@ -1,4 +1,4 @@
-const CACHE = "juju-members-v0.2.52";
+const CACHE = "juju-members-v0.2.53";
 const ASSETS = [
   "./",
   "index.html",
@@ -45,7 +45,6 @@ self.addEventListener("install", (event) => {
   self.skipWaiting();
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)));
 });
-
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>

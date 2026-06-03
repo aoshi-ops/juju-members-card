@@ -3,7 +3,7 @@
   "id": "./admin/",
   "short_name": "ジュジュ管理",
   "description": "cafeジュジュのスタッフ管理アプリ",
-  "start_url": "./admin/login/?app=admin&v=0.2.52",
+  "start_url": "./admin/login/?app=admin&v=0.2.53",
   "scope": "./admin/",
   "display": "standalone",
   "background_color": "#090909",

@@ -61,6 +61,14 @@ body {
   letter-spacing: 0;
   overflow-x: hidden;
   isolation: isolate;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+[data-action],
+[data-link],
+input[type="range"] {
+  touch-action: manipulation;
 }
 
 body:has(.admin-main),
@@ -692,6 +700,29 @@ form {
   inset: 5% 6% 7%;
   border-radius: 12px;
   background: linear-gradient(180deg, rgba(0,0,0,0.02), rgba(0,0,0,0.74));
+}
+
+.favorite-relic-ribbon {
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  top: 11%;
+  z-index: 4;
+  min-height: 16px;
+  display: grid;
+  place-items: center;
+  padding: 2px 4px;
+  border: 1px solid rgba(255, 239, 181, 0.58);
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(250, 217, 126, 0.92), rgba(144, 86, 31, 0.9));
+  box-shadow: 0 2px 8px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.3);
+  color: #1b1108;
+  font-family: "JujuTaisho", "JujuHinaMincho", serif;
+  font-size: clamp(8px, 0.95vw, 10px);
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+  pointer-events: none;
 }
 
 .relic-placeholder {
@@ -1488,17 +1519,34 @@ form {
 
 .icon-editor-modal {
   width: min(520px, calc(100vw - 28px));
-  padding: 18px;
+  max-height: min(760px, calc(100svh - 24px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
   border: 1px solid rgba(225, 199, 131, 0.5);
   border-radius: 8px;
   background: rgba(15, 14, 12, 0.98);
+  overscroll-behavior: contain;
+}
+
+.icon-editor-modal .modal-head {
+  padding: 18px 18px 10px;
+}
+
+.icon-crop-body {
+  min-height: 0;
+  overflow: auto;
+  padding: 0 18px 4px;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .icon-crop-stage {
   position: relative;
-  width: min(360px, 78vw);
+  width: min(340px, 74vw);
   aspect-ratio: 1;
-  margin: 8px auto 18px;
+  margin: 6px auto 16px;
   overflow: hidden;
   border: 1px solid rgba(225, 199, 131, 0.42);
   border-radius: 8px;
@@ -1513,13 +1561,14 @@ form {
 
 .icon-crop-stage img {
   position: absolute;
-  inset: 0;
+  left: 50%;
+  top: 50%;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  object-position: var(--icon-x) var(--icon-y);
-  transform: scale(var(--icon-zoom));
-  transform-origin: var(--icon-x) var(--icon-y);
+  transform: translate(calc(-50% + var(--icon-x)), calc(-50% + var(--icon-y))) scale(var(--icon-zoom));
+  transform-origin: center;
+  will-change: transform;
 }
 
 .icon-crop-mask {
@@ -1551,6 +1600,18 @@ form {
   display: grid;
   gap: 6px;
   color: var(--muted);
+}
+
+.icon-editor-actions {
+  position: sticky;
+  bottom: 0;
+  padding: 12px 18px 18px;
+  border-top: 1px solid rgba(225, 199, 131, 0.22);
+  background: linear-gradient(180deg, rgba(15, 14, 12, 0.82), rgba(15, 14, 12, 0.98) 36%);
+}
+
+.icon-editor-actions .primary {
+  width: 100%;
 }
 
 .relic-picker {
@@ -1612,6 +1673,8 @@ form {
   place-items: center;
   padding: 18px;
   background: rgba(0,0,0,0.72);
+  overflow: hidden;
+  overscroll-behavior: contain;
 }
 
 .relic-modal {
