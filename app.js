@@ -101,6 +101,8 @@ let iconDrag = null;
 let iconPointers = new Map();
 let iconPinch = null;
 let jsQrDecoder = null;
+let navScrollLeft = 0;
+let myDataCache = null;
 let qrDetecting = false;
 let qrSessionConsumed = false;
 let lastQrValue = "";
@@ -185,11 +187,14 @@ const publicUrl = (path) => `${BASE_PATH}${path}`;
 const absoluteUrl = (path) => new URL(publicUrl(path), location.origin).href;
 const navigate = (path) => {
   stopQrScanner();
+  const nav = document.querySelector(".topbar nav");
+  if (nav) navScrollLeft = nav.scrollLeft;
   state = { ...state, message: "", error: "" };
   history.pushState({}, "", publicUrl(path));
   render();
 };
 const replacePath = (path) => history.replaceState({}, "", publicUrl(path));
+const invalidateMyDataCache = () => { myDataCache = null; };
 
 function isDemoAdmin() {
   return localStorage.getItem(ADMIN_DEMO_STORAGE) === "true";
@@ -557,6 +562,7 @@ async function signOut() {
   if (supabase) await supabase.auth.signOut();
   localStorage.removeItem(ADMIN_DEMO_STORAGE);
   session = null;
+  invalidateMyDataCache();
   navigate("/login");
 }
 
@@ -570,6 +576,9 @@ async function loadMyData() {
   if (!supabase) return demo;
   const current = await currentSession();
   if (!current) throw new Error("ログインが必要です。");
+  if (myDataCache?.authUserId === current.user.id && Date.now() - myDataCache.at < 8000) {
+    return myDataCache.data;
+  }
 
   const user = await ensureUserProfile(current.user);
   await cleanupUserCoupons(user.id);
@@ -600,7 +609,7 @@ async function loadMyData() {
   const mergedNewsPosts = mergeNewsPosts(newsPosts.data || []);
   const unreadNewsCount = mergedNewsPosts.filter((post) => !readIds.has(post.id) && !localReadIds.has(post.id)).length;
 
-  return {
+  const data = {
     profile: profile || { role: "user" },
     user,
     visits: visits.data || [],
@@ -614,6 +623,8 @@ async function loadMyData() {
     newsReads: newsReads.data || [],
     unreadNewsCount
   };
+  myDataCache = { authUserId: current.user.id, at: Date.now(), data };
+  return data;
 }
 
 function applyUnreadNewsCount(data) {
@@ -858,6 +869,7 @@ async function toggleBirthday(checked) {
   }
   const { error } = await supabase.from("users").update({ birthday_visible: checked }).eq("auth_user_id", current.user.id);
   if (error) state.error = appErrorMessage(error);
+  else invalidateMyDataCache();
   render();
 }
 
@@ -889,6 +901,7 @@ async function updateUsername(event) {
         }
       }
     }
+    invalidateMyDataCache();
     state = { ...state, usernameEditor: "font", message: "\u30e6\u30fc\u30b6\u30fc\u30cd\u30fc\u30e0\u3092\u66f4\u65b0\u3057\u307e\u3057\u305f\u3002", error: "" };
   } catch (error) {
     state = { ...state, error: appErrorMessage(error) };
@@ -976,7 +989,10 @@ async function setFavoriteRelic(value, name = "") {
   if (dbRelic) {
     const { error } = await supabase.from("users").update({ favorite_relic_id: dbRelic.id }).eq("id", data.user.id);
     if (error) state.error = appErrorMessage(error);
-    else state = { ...state, relicPicker: false, message: "推し呪物を設定しました。", error: "" };
+    else {
+      invalidateMyDataCache();
+      state = { ...state, relicPicker: false, message: "推し呪物を設定しました。", error: "" };
+    }
   } else {
     state = { ...state, relicPicker: false, message: "推し呪物をこの端末に保存しました。Supabase側へ反映するには schema.sql の再実行で呪物候補を登録してください。", error: "" };
   }
@@ -1048,6 +1064,7 @@ async function saveCroppedIcon() {
       const { error } = await supabase.from("users").update({ icon_url: iconUrl }).eq("id", data.user.id);
       if (error) throw error;
     }
+    invalidateMyDataCache();
     state = { busy: false, message: "アイコンを更新しました。", error: "", iconEditor: null };
   } catch (error) {
     state = { ...state, error: appErrorMessage(error) };
@@ -1069,8 +1086,8 @@ function cropIconToDataUrl(editor) {
       const scale = Math.max(size / image.width, size / image.height) * editor.zoom;
       const drawW = image.width * scale;
       const drawH = image.height * scale;
-      const x = (size - drawW) / 2 + drawW * ((Number(editor.x) || 0) / 100);
-      const y = (size - drawH) / 2 + drawH * ((Number(editor.y) || 0) / 100);
+      const x = (size - drawW) / 2 + size * ((Number(editor.x) || 0) / 100);
+      const y = (size - drawH) / 2 + size * ((Number(editor.y) || 0) / 100);
       ctx.drawImage(image, x, y, drawW, drawH);
       resolve(canvas.toDataURL("image/jpeg", 0.88));
     };
@@ -1084,6 +1101,7 @@ async function recordVisit(type, options = {}) {
     if (!supabase) throw new Error("デモ表示では記録できません。Supabase 接続後に試してください。");
     const { data, error } = await supabase.rpc("record_visit", { visit_kind: type });
     if (error) throw error;
+    invalidateMyDataCache();
     state = { ...state, busy: false, message: data.message, error: "", qrProcessingKey: "" };
   } catch (error) {
     state = { ...state, busy: false, message: "", error: appErrorMessage(error), qrProcessingKey: "" };
@@ -1100,6 +1118,7 @@ async function recordSoundHorror(id, options = {}) {
     if (!supabase) throw new Error("デモ表示では記録できません。Supabase 接続後に試してください。");
     const { data, error } = await supabase.rpc("record_sound_horror", { horror_id: id });
     if (error) throw error;
+    invalidateMyDataCache();
     state = { ...state, busy: false, message: data.message, error: "", qrProcessingKey: "" };
   } catch (error) {
     state = { ...state, busy: false, message: "", error: appErrorMessage(error), qrProcessingKey: "" };
@@ -1283,6 +1302,7 @@ async function useCoupon(couponId) {
     }
     const { data, error } = await supabase.rpc("use_user_coupon", { user_coupon_id: couponId });
     if (error) throw error;
+    invalidateMyDataCache();
     state = { busy: false, message: data.message || "クーポンを使用済みにしました。", error: "", selectedCouponId: "" };
   } catch (error) {
     state = { busy: false, message: "", error: appErrorMessage(error), selectedCouponId: "" };
@@ -2709,6 +2729,8 @@ async function render() {
 
 function paintShell(markup) {
   app.innerHTML = markup;
+  const nav = document.querySelector(".topbar nav");
+  if (nav) requestAnimationFrame(() => { nav.scrollLeft = navScrollLeft; });
   if (appPath() === "/scan" && localStorage.getItem(QR_CAMERA_ALLOWED_STORAGE) === "true" && !qrScanning) {
     setTimeout(() => {
       if (appPath() === "/scan" && !qrScanning) startQrScanner();

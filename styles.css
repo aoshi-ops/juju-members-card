@@ -207,6 +207,9 @@ nav {
   align-items: center;
   gap: 8px;
   overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-behavior: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 nav button {
@@ -704,25 +707,30 @@ form {
 
 .favorite-relic-ribbon {
   position: absolute;
-  left: 14%;
-  right: 14%;
-  top: 11%;
+  left: 4%;
+  top: 8%;
   z-index: 4;
-  min-height: 16px;
+  min-width: 42px;
+  min-height: 15px;
   display: grid;
   place-items: center;
-  padding: 2px 4px;
-  border: 1px solid rgba(255, 239, 181, 0.58);
-  border-radius: 999px;
-  background: linear-gradient(180deg, rgba(250, 217, 126, 0.92), rgba(144, 86, 31, 0.9));
-  box-shadow: 0 2px 8px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.3);
-  color: #1b1108;
-  font-family: "JujuTaisho", "JujuHinaMincho", serif;
-  font-size: clamp(8px, 0.95vw, 10px);
+  padding: 2px 6px;
+  border: 1px solid rgba(113, 61, 26, 0.72);
+  border-radius: 2px;
+  background:
+    linear-gradient(92deg, rgba(255,255,255,0.35), rgba(255,255,255,0) 22% 62%, rgba(70, 33, 13, 0.2)),
+    repeating-linear-gradient(12deg, rgba(97, 50, 19, 0.2) 0 2px, rgba(230, 190, 122, 0.22) 2px 5px),
+    linear-gradient(180deg, #f0d08a, #b26c2f 58%, #7b3d18);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,244,198,0.42);
+  color: #211208;
+  font-family: "JujuHinaMincho", "Yu Mincho", serif;
+  font-size: clamp(7px, 0.85vw, 9px);
   font-weight: 900;
   line-height: 1;
   text-align: center;
   pointer-events: none;
+  transform: rotate(-15deg);
+  transform-origin: left center;
 }
 
 .relic-placeholder {
@@ -1574,14 +1582,14 @@ form {
 .icon-crop-mask {
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at center, transparent 0 39%, rgba(0,0,0,0.64) 40%);
+  background: radial-gradient(circle at center, transparent 0 43%, rgba(0,0,0,0.64) 44%);
   pointer-events: none;
 }
 
 .icon-crop-circle {
   position: absolute;
   inset: 50%;
-  width: 72%;
+  width: 88%;
   aspect-ratio: 1;
   transform: translate(-50%, -50%);
   border: 2px dashed rgba(255,255,255,0.9);
