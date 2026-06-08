@@ -1062,8 +1062,7 @@ function feedbackModal() {
         <p class="form-note">メンバーズカードの使いづらいところ・追加して欲しい機能や、店舗やイベントに関するご意見・ご感想などお気軽にご記入ください！</p>
         <form class="feedback-form" data-form="feedback-submit">
           <label>
-            ご意見/ご感想
-            <textarea name="message" rows="6" maxlength="1200" required placeholder="こちらにご記入ください"></textarea>
+            <textarea name="message" rows="6" maxlength="1200" required aria-label="ご意見/ご感想" placeholder="こちらにご記入ください"></textarea>
           </label>
           <button class="primary" type="submit" ${state.busy ? "disabled" : ""}>送信</button>
         </form>
@@ -3001,7 +3000,7 @@ document.addEventListener("click", (event) => {
     render();
   }
   if (action.dataset.action === "close-feedback-modal") {
-    if (event.target !== action && !event.target.closest('[data-action="close-feedback-modal"]')) return;
+    if (event.target.closest(".feedback-modal") && !event.target.closest('button[data-action="close-feedback-modal"]')) return;
     state = { ...state, feedbackOpen: false };
     render();
   }
