@@ -1,4 +1,4 @@
-const CACHE = "juju-members-v0.2.61";
+const CACHE = "juju-members-v0.2.62";
 const ASSETS = [
   "./",
   "index.html",

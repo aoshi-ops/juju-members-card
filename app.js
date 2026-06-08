@@ -24,6 +24,8 @@ const currentSoundHorrors = (horrors = []) =>
 const specialExperiences = [
   { code: "sange-box", title: "\u3055\u3093\u3052\u306e\u7bb1", point: 3 }
 ];
+const soundHorrorLegacyKeys = Object.fromEntries(demoSoundHorrors.map((horror) => [horror.id, horror.title]));
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const contactInfo = {
   phone: "03-5913-8428",
   email: "obakendesk@gmail.com",
@@ -300,8 +302,28 @@ function clearPendingRegistration() {
 
 function appErrorMessage(error) {
   const message = String(error?.message || error || "");
+  const name = String(error?.name || "");
+  if (
+    name === "NotAllowedError" ||
+    name === "PermissionDeniedError" ||
+    message.includes("Permission denied") ||
+    message.includes("Permission dismissed")
+  ) {
+    localStorage.removeItem(QR_CAMERA_ALLOWED_STORAGE);
+    return "カメラの使用が許可されていません。Androidの場合はブラウザのサイト設定からカメラを許可して、もう一度「カメラを起動」を押してください。難しい場合は下の「写真からQRを読む」を使えます。";
+  }
+  if (
+    name === "NotFoundError" ||
+    message.includes("Requested device not found") ||
+    message.includes("No camera")
+  ) {
+    return "この端末で利用できるカメラが見つかりませんでした。標準カメラでQRを開くか、「写真からQRを読む」を試してください。";
+  }
   if (message.includes("feedback_messages")) {
     return "ご意見箱用のSupabaseテーブルがまだ反映されていません。最新の supabase/schema.sql をSQL Editorで再実行してください。";
+  }
+  if (message.includes("record_sound_horror_by_key")) {
+    return "サウンドホラーQR用のSupabase関数がまだ反映されていません。下に出した追加SQLをSQL Editorで実行してください。";
   }
   if (
     message.includes("create_staff_news_post") ||
@@ -1183,10 +1205,37 @@ async function recordVisit(type, options = {}) {
   render();
 }
 
+async function resolveSoundHorrorId(key) {
+  const rawKey = String(key || "").trim();
+  if (!rawKey) throw new Error("サウンドホラーQRが不正です。");
+  if (uuidPattern.test(rawKey)) return rawKey;
+  const title = soundHorrorLegacyKeys[rawKey] || rawKey;
+  if (!supabase) throw new Error("デモ表示では記録できません。Supabase 接続後に試してください。");
+  const { data, error } = await supabase
+    .from("sound_horrors")
+    .select("id")
+    .eq("title", title)
+    .eq("is_active", true)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data?.id) throw new Error(`サウンドホラー作品が見つかりません: ${title}`);
+  return data.id;
+}
+
 async function recordSoundHorror(id, options = {}) {
   try {
     if (!supabase) throw new Error("デモ表示では記録できません。Supabase 接続後に試してください。");
-    const { data, error } = await supabase.rpc("record_sound_horror", { horror_id: id });
+    let data = null;
+    let error = null;
+    const byKey = await supabase.rpc("record_sound_horror_by_key", { horror_key: String(id || "") });
+    data = byKey.data;
+    error = byKey.error;
+    if (error) {
+      const resolvedId = await resolveSoundHorrorId(id);
+      const fallback = await supabase.rpc("record_sound_horror", { horror_id: resolvedId });
+      data = fallback.data;
+      error = fallback.error;
+    }
     if (error) throw error;
     invalidateMyDataCache();
     state = { ...state, busy: false, message: data.message, error: "", qrProcessingKey: "" };
@@ -1225,8 +1274,38 @@ function stopQrScanner() {
   qrDetecting = false;
 }
 
+async function ensureJsQrDecoder() {
+  if (!jsQrDecoder) {
+    const mod = await import("https://esm.sh/jsqr@1.4.0");
+    jsQrDecoder = mod.default || mod.jsQR || mod;
+  }
+  return jsQrDecoder;
+}
+
+async function requestQrCameraStream() {
+  const attempts = [
+    { video: { facingMode: { exact: "environment" } }, audio: false },
+    { video: { facingMode: { ideal: "environment" } }, audio: false },
+    { video: true, audio: false }
+  ];
+  let lastError = null;
+  for (const constraints of attempts) {
+    try {
+      return await navigator.mediaDevices.getUserMedia(constraints);
+    } catch (error) {
+      lastError = error;
+      const name = String(error?.name || "");
+      if (name === "NotAllowedError" || name === "PermissionDeniedError") break;
+    }
+  }
+  throw lastError || new Error("カメラを起動できませんでした。");
+}
+
 async function startQrScanner() {
   try {
+    if (!window.isSecureContext) {
+      throw new Error("カメラを使うにはHTTPSで開く必要があります。公開URLから開き直してください。");
+    }
     if (!navigator.mediaDevices?.getUserMedia) {
       throw new Error("この端末ではブラウザからカメラを起動できません。");
     }
@@ -1235,10 +1314,9 @@ async function startQrScanner() {
     stopQrScanner();
     qrSessionConsumed = false;
     state = { ...state, message: "QRを枠内に入れてください。読み取ると自動で進みます。", error: "" };
-    qrStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
-      audio: false
-    });
+    qrStream = await requestQrCameraStream();
+    video.setAttribute("playsinline", "true");
+    video.muted = true;
     video.srcObject = qrStream;
     await video.play();
     localStorage.setItem(QR_CAMERA_ALLOWED_STORAGE, "true");
@@ -1247,10 +1325,7 @@ async function startQrScanner() {
     let canvas = null;
     let ctx = null;
     if (!detector) {
-      if (!jsQrDecoder) {
-        const mod = await import("https://esm.sh/jsqr@1.4.0");
-        jsQrDecoder = mod.default || mod.jsQR || mod;
-      }
+      await ensureJsQrDecoder();
       canvas = document.createElement("canvas");
       ctx = canvas.getContext("2d", { willReadFrequently: true });
     }
@@ -1316,13 +1391,23 @@ async function startQrScanner() {
 async function decodeQrImage(file) {
   if (!file) return;
   try {
-    if (!("BarcodeDetector" in window)) {
-      throw new Error("このブラウザでは画像からのQR読み取りに対応していません。標準カメラアプリでQRを読み取ってください。");
-    }
     const bitmap = await createImageBitmap(file);
-    const detector = new BarcodeDetector({ formats: ["qr_code"] });
-    const codes = await detector.detect(bitmap);
-    const value = codes[0]?.rawValue;
+    let value = "";
+    if ("BarcodeDetector" in window) {
+      const detector = new BarcodeDetector({ formats: ["qr_code"] });
+      const codes = await detector.detect(bitmap);
+      value = codes[0]?.rawValue || "";
+    }
+    if (!value) {
+      const canvas = document.createElement("canvas");
+      canvas.width = bitmap.width;
+      canvas.height = bitmap.height;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(bitmap, 0, 0);
+      const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const decoder = await ensureJsQrDecoder();
+      value = decoder(image.data, canvas.width, canvas.height, { inversionAttempts: "attemptBoth" })?.data || "";
+    }
     if (!value) throw new Error("QRコードを読み取れませんでした。明るい場所でもう一度撮影してください。");
     openQrValue(value);
   } catch (error) {
@@ -2165,6 +2250,7 @@ function viewScan() {
       <div class="qr-scan-actions">
         <button class="primary" type="button" data-action="start-qr-scanner">\u30ab\u30e1\u30e9\u3092\u8d77\u52d5</button>
         <button type="button" data-action="stop-qr-scanner">\u505c\u6b62</button>
+        <label class="button-like qr-image-reader">\u5199\u771f\u304b\u3089QR\u3092\u8aad\u3080<input type="file" accept="image/*" capture="environment" data-action="qr-image-upload" /></label>
         <button data-link="/member-card">\u4f1a\u54e1\u8a3c\u3078\u623b\u308b</button>
       </div>
     </section>
@@ -2842,11 +2928,6 @@ function paintShell(markup) {
   app.innerHTML = markup;
   const nav = document.querySelector(".topbar nav");
   if (nav) requestAnimationFrame(() => { nav.scrollLeft = navScrollLeft; });
-  if (appPath() === "/scan" && localStorage.getItem(QR_CAMERA_ALLOWED_STORAGE) === "true" && !qrScanning) {
-    setTimeout(() => {
-      if (appPath() === "/scan" && !qrScanning) startQrScanner();
-    }, 80);
-  }
 }
 
 function clampIconOffset(value) {
@@ -3078,6 +3159,7 @@ document.addEventListener("change", (event) => {
   if (event.target.matches('[data-action="icon-crop-x"]')) setIconEditorValue("x", event.target.value);
   if (event.target.matches('[data-action="icon-crop-y"]')) setIconEditorValue("y", event.target.value);
   if (event.target.matches('[data-action="icon-crop-zoom"]')) setIconEditorValue("zoom", event.target.value);
+  if (event.target.matches('[data-action="qr-image-upload"]')) decodeQrImage(event.target.files?.[0]);
 });
 
 document.addEventListener("pointerdown", (event) => {

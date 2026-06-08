@@ -2016,6 +2016,28 @@ th { color: var(--gold-2); }
   flex-wrap: wrap;
 }
 
+.qr-image-reader {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0.78rem 1.2rem;
+  border: 1px solid rgba(215, 180, 104, 0.28);
+  border-radius: 8px;
+  background: rgba(27, 13, 8, 0.72);
+  color: var(--cream);
+  font-family: var(--font-title);
+  cursor: pointer;
+}
+
+.qr-image-reader input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .qr-modal {
   width: min(520px, calc(100vw - 28px));
   padding: 18px;
