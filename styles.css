@@ -740,7 +740,7 @@ form {
   place-items: center;
   color: rgba(225, 199, 131, 0.72);
   font-size: 32px;
-  font-family: "JujuTaisho", "JujuHinaMincho", serif;
+  font-family: "JujuHinaMincho", "Yu Mincho", serif;
 }
 
 .favorite-relic-badge strong {
@@ -1393,7 +1393,7 @@ form {
   place-items: center;
   border: 1px solid rgba(225, 199, 131, 0.5);
   color: var(--gold-2);
-  font-family: "Yu Mincho", serif;
+  font-family: "JujuHinaMincho", "Yu Mincho", serif;
   font-weight: 800;
 }
 
@@ -1665,7 +1665,7 @@ form {
   border-left: 3px solid var(--gold);
   background: rgba(0,0,0,0.72);
   color: var(--gold-2);
-  font-family: "Yu Mincho", "Hiragino Mincho ProN", serif;
+  font-family: "JujuHinaMincho", "Yu Mincho", "Hiragino Mincho ProN", serif;
   font-weight: 800;
   font-size: 14px;
   line-height: 1.2;
