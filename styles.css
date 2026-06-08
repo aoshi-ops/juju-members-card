@@ -710,26 +710,23 @@ form {
   left: 50%;
   top: calc(100% + 2px);
   z-index: 4;
-  min-width: 52px;
-  min-height: 14px;
-  display: grid;
-  place-items: center;
-  padding: 2px 8px;
-  border: 1px solid rgba(133, 89, 45, 0.48);
-  border-radius: 999px;
-  background:
-    linear-gradient(180deg, rgba(246, 217, 148, 0.2), rgba(83, 51, 24, 0.18)),
-    rgba(50, 31, 17, 0.46);
-  box-shadow: 0 1px 4px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,244,198,0.12);
-  color: rgba(86, 55, 25, 0.78);
-  font-family: "JujuHinaMincho", "Yu Mincho", serif;
-  font-size: clamp(8px, 0.9vw, 10px);
+  display: block;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgba(94, 47, 20, 0.58);
+  font-family: "JujuTaisho", "JujuHinaMincho", serif;
+  font-size: clamp(9px, 1vw, 11px);
   font-weight: 800;
   line-height: 1;
   text-align: center;
+  text-shadow:
+    0 1px 0 rgba(255, 230, 171, 0.18),
+    0 0 1px rgba(75, 28, 12, 0.45);
   pointer-events: none;
   white-space: nowrap;
   transform: translateX(-50%);
+  mix-blend-mode: multiply;
 }
 
 .relic-placeholder {
