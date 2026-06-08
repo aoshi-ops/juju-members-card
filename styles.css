@@ -957,6 +957,10 @@ form {
   border-radius: 5px;
 }
 
+.mail-icon-button img {
+  filter: contrast(1.08) saturate(0.72) brightness(0.9);
+}
+
 .stamp-head h2 {
   margin: 0;
   font-size: clamp(32px, 7vw, 78px);
@@ -1415,6 +1419,48 @@ form {
   overflow-wrap: anywhere;
 }
 
+.mailbox-timeline {
+  max-width: 820px;
+}
+
+.mailbox-item {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid rgba(225, 199, 131, 0.28);
+  border-radius: 8px;
+  background: rgba(18, 17, 15, 0.94);
+}
+
+.mailbox-meta {
+  display: grid;
+  gap: 3px;
+  color: var(--muted);
+}
+
+.mailbox-meta strong {
+  color: var(--ink);
+  font-size: clamp(20px, 4.8vw, 28px);
+}
+
+.mailbox-meta span,
+.mailbox-meta small,
+.mailbox-meta time,
+.mailbox-item code {
+  overflow-wrap: anywhere;
+}
+
+.mailbox-item p {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.75;
+  white-space: pre-wrap;
+}
+
+.mailbox-item code {
+  color: rgba(216, 199, 159, 0.82);
+}
+
 .news-image {
   width: 100%;
   max-height: 420px;
@@ -1692,7 +1738,8 @@ form {
 }
 
 .username-editor-modal,
-.calendar-modal {
+.calendar-modal,
+.feedback-modal {
   width: min(560px, calc(100vw - 30px));
   max-height: min(760px, 88svh);
   overflow: auto;
@@ -1700,6 +1747,16 @@ form {
   border: 1px solid rgba(225, 199, 131, 0.5);
   border-radius: 8px;
   background: rgba(15, 14, 12, 0.97);
+}
+
+.feedback-form {
+  display: grid;
+  gap: 14px;
+}
+
+.feedback-form textarea {
+  resize: vertical;
+  min-height: 150px;
 }
 
 .font-choice-list {

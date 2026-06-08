@@ -128,6 +128,7 @@ const QR_CAMERA_ALLOWED_STORAGE = "JUJU_QR_CAMERA_ALLOWED";
 const NEWS_LOCAL_STORAGE = "JUJU_LOCAL_NEWS_POSTS";
 const CALENDAR_IMAGE_STORAGE = "JUJU_CALENDAR_IMAGE";
 const CALENDAR_SETTING_KEY = "calendar_image";
+const FEEDBACK_LOCAL_STORAGE = "JUJU_LOCAL_FEEDBACK_MESSAGES";
 const usernameFontOptions = [
   { id: "hina", label: "\u3072\u306a\u660e\u671d", note: "\u6a19\u6e96", className: "username-font-hina", cssStack: "\"JujuHinaMincho\", \"Yu Mincho\", serif", minRank: 1 },
   { id: "zero", label: "\u96f6\u30b4\u30b7\u30c3\u30af", note: "\u30e9\u30f3\u30af2\u3067\u89e3\u653e", className: "username-font-zero", cssStack: "\"JujuZeroGothic\", \"JujuHinaMincho\", serif", minRank: 2 },
@@ -299,6 +300,9 @@ function clearPendingRegistration() {
 
 function appErrorMessage(error) {
   const message = String(error?.message || error || "");
+  if (message.includes("feedback_messages")) {
+    return "ご意見箱用のSupabaseテーブルがまだ反映されていません。最新の supabase/schema.sql をSQL Editorで再実行してください。";
+  }
   if (
     message.includes("create_staff_news_post") ||
     message.includes("Could not find the function") ||
@@ -1045,6 +1049,73 @@ function iconEditorModal(editor) {
       </section>
     </div>
   `;
+}
+
+function feedbackModal() {
+  return html`
+    <div class="modal-backdrop" data-action="close-feedback-modal">
+      <section class="feedback-modal" data-no-flip>
+        <div class="modal-head">
+          <h2>ご意見/ご感想はこちらから</h2>
+          <button type="button" data-action="close-feedback-modal">閉じる</button>
+        </div>
+        <p class="form-note">メンバーズカードの使いづらいところ・追加して欲しい機能や、店舗やイベントに関するご意見・ご感想などお気軽にご記入ください！</p>
+        <form class="feedback-form" data-form="feedback-submit">
+          <label>
+            ご意見/ご感想
+            <textarea name="message" rows="6" maxlength="1200" required placeholder="こちらにご記入ください"></textarea>
+          </label>
+          <button class="primary" type="submit" ${state.busy ? "disabled" : ""}>送信</button>
+        </form>
+      </section>
+    </div>
+  `;
+}
+
+function localFeedbackMessages() {
+  try {
+    return JSON.parse(localStorage.getItem(FEEDBACK_LOCAL_STORAGE) || "[]");
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalFeedbackMessage(message, user) {
+  const entry = {
+    id: `local-feedback-${Date.now()}`,
+    message,
+    created_at: new Date().toISOString(),
+    users: {
+      id: user.id,
+      member_number: user.member_number,
+      real_name: user.real_name,
+      username: user.username,
+      email: user.email
+    }
+  };
+  localStorage.setItem(FEEDBACK_LOCAL_STORAGE, JSON.stringify([entry, ...localFeedbackMessages()].slice(0, 100)));
+}
+
+async function submitFeedback(event) {
+  event.preventDefault();
+  const formElement = formFromEvent(event);
+  if (!formElement?.reportValidity?.()) return;
+  const message = String(new FormData(formElement).get("message") || "").trim();
+  try {
+    if (!message) throw new Error("ご意見/ご感想を入力してください。");
+    state = { ...state, busy: true, message: "", error: "" };
+    const data = await loadMyData();
+    if (!supabase) {
+      saveLocalFeedbackMessage(message, data.user);
+    } else {
+      const { error } = await supabase.from("feedback_messages").insert({ user_id: data.user.id, message });
+      if (error) throw error;
+    }
+    state = { ...state, busy: false, feedbackOpen: false, message: "送信しました。ありがとうございます。", error: "" };
+  } catch (error) {
+    state = { ...state, busy: false, error: appErrorMessage(error) };
+  }
+  render();
 }
 
 function setIconEditorValue(key, value) {
@@ -1858,7 +1929,7 @@ function layout(content, admin = false) {
       <button class="brand" data-link="${admin ? "/admin/dashboard" : "/member-card"}"><img src="assets/brand/joujou_logo_white.png" alt="" aria-hidden="true" />cafeジュジュ</button>
       <nav>
         ${admin
-          ? `<button data-link="/admin/dashboard">管理</button><button data-link="/admin/users">登録者</button><button data-link="/admin/visits">履歴</button><button data-link="/admin/points">特別ポイント</button><button data-link="/admin/qr">QR表示</button><button data-link="/admin/coupons">クーポン</button><button data-link="/admin/calendar">カレンダー</button><button data-link="/admin/news">NEWS</button>`
+          ? `<button data-link="/admin/dashboard">管理</button><button data-link="/admin/users">登録者</button><button data-link="/admin/visits">履歴</button><button data-link="/admin/points">特別ポイント</button><button data-link="/admin/qr">QR表示</button><button data-link="/admin/coupons">クーポン</button><button data-link="/admin/calendar">カレンダー</button><button data-link="/admin/mailbox">メールボックス</button><button data-link="/admin/news">NEWS</button>`
           : `<button data-link="/member-card">会員証</button><button data-link="/coupons">クーポン</button><button data-link="/special-cards">特別カード</button><button class="news-nav-button" data-link="/news">NEWS${state.unreadNewsCount ? `<span class="news-badge">${state.unreadNewsCount}</span>` : ""}</button><button data-link="/contact">コンタクト</button>`}
         <button data-action="logout">ログアウト</button>
       </nav>
@@ -2039,6 +2110,7 @@ async function viewMemberCard() {
               <span>\u8a95\u751f\u65e5 ${birthday}</span>
               <label class="check birthday-toggle"><input type="checkbox" data-action="birthday" aria-label="\u8a95\u751f\u65e5\u3092\u8868\u793a" ${data.user.birthday_visible ? "checked" : ""} /></label>
               <button class="calendar-icon-button" type="button" data-action="open-calendar-modal" data-no-flip aria-label="\u55b6\u696d\u65e5\u30ab\u30ec\u30f3\u30c0\u30fc\u3092\u8868\u793a"><img src="assets/calendar-icon.jpg" alt="" aria-hidden="true" /></button>
+              <button class="calendar-icon-button mail-icon-button" type="button" data-action="open-feedback-modal" data-no-flip aria-label="\u3054\u610f\u898b/\u3054\u611f\u60f3\u3092\u9001\u308b"><img src="assets/mail-icon.jpg" alt="" aria-hidden="true" /></button>
             </div>
           </div>
           <div class="mini-facts">
@@ -2066,6 +2138,7 @@ async function viewMemberCard() {
     ${state.purchaseSealOpen ? purchaseSealModal() : ""}
     ${state.usernameEditor ? usernameEditorModal(data.user, rank, usernameFontId) : ""}
     ${state.calendarOpen ? calendarModal(calendarImage) : ""}
+    ${state.feedbackOpen ? feedbackModal() : ""}
   `);
 }
 
@@ -2334,6 +2407,44 @@ async function viewAdminNews() {
     </section>
     <section class="news-timeline admin-news-timeline">
       ${posts.length ? posts.map((post) => newsPostCard(post, true)).join("") : `<p class="empty">NEWS\u306f\u307e\u3060\u3042\u308a\u307e\u305b\u3093\u3002</p>`}
+    </section>
+  `, true);
+}
+
+function feedbackCard(item) {
+  const user = item.users || item.user || {};
+  return html`
+    <article class="mailbox-item">
+      <div class="mailbox-meta">
+        <strong>${escapeHtml(user.real_name || "-")}</strong>
+        <span>${escapeHtml(user.member_number || user.id || item.user_id || "-")}</span>
+        <small>${escapeHtml(user.email || "-")}</small>
+        <time>${escapeHtml(yenDate(item.created_at))}</time>
+      </div>
+      <p>${escapeHtml(item.message || "")}</p>
+      <code>user_id: ${escapeHtml(user.id || item.user_id || "-")}</code>
+    </article>
+  `;
+}
+
+async function viewAdminMailbox() {
+  let messages = [];
+  if (isDemoAdmin() || !supabase) {
+    messages = localFeedbackMessages();
+  } else {
+    const { data, error } = await supabase
+      .from("feedback_messages")
+      .select("id,user_id,message,created_at,users(id,member_number,real_name,username,email)")
+      .order("created_at", { ascending: false })
+      .limit(200);
+    if (error) throw error;
+    messages = data || [];
+  }
+  return layout(html`
+    ${adminModeBanner()}
+    <section class="page-head"><h1>\u30e1\u30fc\u30eb\u30dc\u30c3\u30af\u30b9</h1><p>\u30e1\u30f3\u30d0\u30fc\u30ba\u30ab\u30fc\u30c9\u304b\u3089\u5c4a\u3044\u305f\u3054\u610f\u898b/\u3054\u611f\u60f3\u3092\u78ba\u8a8d\u3057\u307e\u3059\u3002</p></section>
+    <section class="news-timeline mailbox-timeline">
+      ${messages.length ? messages.map(feedbackCard).join("") : `<p class="empty">\u307e\u3060\u30e1\u30c3\u30bb\u30fc\u30b8\u306f\u5c4a\u3044\u3066\u3044\u307e\u305b\u3093\u3002</p>`}
     </section>
   `, true);
 }
@@ -2715,6 +2826,7 @@ async function render() {
     else if (path === "/admin/qr") paintShell(await viewAdminQr());
     else if (path === "/admin/coupons") paintShell(await viewAdminCoupons());
     else if (path === "/admin/calendar") paintShell(await viewAdminCalendar());
+    else if (path === "/admin/mailbox") paintShell(await viewAdminMailbox());
     else if (path === "/admin/news") paintShell(await viewAdminNews());
     else paintShell(layout(`<section class="empty-state">ページが見つかりません。</section>`));
   } catch (error) {
@@ -2884,6 +2996,15 @@ document.addEventListener("click", (event) => {
     state = { ...state, calendarOpen: false };
     render();
   }
+  if (action.dataset.action === "open-feedback-modal") {
+    state = { ...state, feedbackOpen: true };
+    render();
+  }
+  if (action.dataset.action === "close-feedback-modal") {
+    if (event.target !== action && !event.target.closest('[data-action="close-feedback-modal"]')) return;
+    state = { ...state, feedbackOpen: false };
+    render();
+  }
   if (action.dataset.action === "open-coupon") {
     state = { ...state, selectedCouponId: action.dataset.couponId };
     render();
@@ -2984,6 +3105,7 @@ document.addEventListener("submit", (event) => {
   if (form === "coupon-grant") grantCoupon(event);
   if (form === "calendar-image") updateCalendarImage(event);
   if (form === "username-update") updateUsername(event);
+  if (form === "feedback-submit") submitFeedback(event);
   if (form === "purchase-permission") grantPurchasePermission(event);
   if (form === "news-create" || form === "news-url-create") createNewsPost(event.currentTarget, event.submitter);
   if (form === "news-edit") updateNewsPost(event);

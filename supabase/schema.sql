@@ -201,6 +201,16 @@ create table if not exists public.news_reads (
   unique (user_id, news_post_id)
 );
 
+create table if not exists public.feedback_messages (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.users(id) on delete cascade,
+  message text not null check (char_length(trim(message)) between 1 and 1200),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists feedback_messages_user_created_idx
+on public.feedback_messages (user_id, created_at desc);
+
 create table if not exists public.app_settings (
   key text primary key,
   value text,
@@ -409,6 +419,7 @@ grant select, insert, update, delete on
   public.user_purchase_permissions,
   public.news_posts,
   public.news_reads,
+  public.feedback_messages,
   public.app_settings,
   public.user_profile_logs
 to authenticated;
@@ -976,6 +987,7 @@ alter table public.special_card_entries enable row level security;
 alter table public.user_purchase_permissions enable row level security;
 alter table public.news_posts enable row level security;
 alter table public.news_reads enable row level security;
+alter table public.feedback_messages enable row level security;
 alter table public.app_settings enable row level security;
 alter table public.user_profile_logs enable row level security;
 
@@ -1124,6 +1136,14 @@ for insert with check (user_id = public.current_app_user_id());
 drop policy if exists "news_reads_update_own" on public.news_reads;
 create policy "news_reads_update_own" on public.news_reads
 for update using (user_id = public.current_app_user_id()) with check (user_id = public.current_app_user_id());
+
+drop policy if exists "feedback_messages_select_own_or_staff" on public.feedback_messages;
+create policy "feedback_messages_select_own_or_staff" on public.feedback_messages
+for select using (user_id = public.current_app_user_id() or public.is_staff());
+
+drop policy if exists "feedback_messages_insert_own" on public.feedback_messages;
+create policy "feedback_messages_insert_own" on public.feedback_messages
+for insert with check (user_id = public.current_app_user_id());
 
 drop policy if exists "user_profile_logs_select_own_or_staff" on public.user_profile_logs;
 create policy "user_profile_logs_select_own_or_staff" on public.user_profile_logs
