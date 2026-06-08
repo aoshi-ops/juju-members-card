@@ -707,30 +707,29 @@ form {
 
 .favorite-relic-ribbon {
   position: absolute;
-  left: 4%;
-  top: 8%;
+  left: 50%;
+  top: calc(100% + 2px);
   z-index: 4;
-  min-width: 42px;
-  min-height: 15px;
+  min-width: 52px;
+  min-height: 14px;
   display: grid;
   place-items: center;
-  padding: 2px 6px;
-  border: 1px solid rgba(113, 61, 26, 0.72);
-  border-radius: 2px;
+  padding: 2px 8px;
+  border: 1px solid rgba(133, 89, 45, 0.48);
+  border-radius: 999px;
   background:
-    linear-gradient(92deg, rgba(255,255,255,0.35), rgba(255,255,255,0) 22% 62%, rgba(70, 33, 13, 0.2)),
-    repeating-linear-gradient(12deg, rgba(97, 50, 19, 0.2) 0 2px, rgba(230, 190, 122, 0.22) 2px 5px),
-    linear-gradient(180deg, #f0d08a, #b26c2f 58%, #7b3d18);
-  box-shadow: 0 2px 5px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,244,198,0.42);
-  color: #211208;
+    linear-gradient(180deg, rgba(246, 217, 148, 0.2), rgba(83, 51, 24, 0.18)),
+    rgba(50, 31, 17, 0.46);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,244,198,0.12);
+  color: rgba(86, 55, 25, 0.78);
   font-family: "JujuHinaMincho", "Yu Mincho", serif;
-  font-size: clamp(7px, 0.85vw, 9px);
-  font-weight: 900;
+  font-size: clamp(8px, 0.9vw, 10px);
+  font-weight: 800;
   line-height: 1;
   text-align: center;
   pointer-events: none;
-  transform: rotate(-15deg);
-  transform-origin: left center;
+  white-space: nowrap;
+  transform: translateX(-50%);
 }
 
 .relic-placeholder {
