@@ -109,6 +109,7 @@ let qrDetecting = false;
 let qrSessionConsumed = false;
 let lastQrValue = "";
 let lastQrAt = 0;
+let lastQrScanAt = 0;
 
 const app = document.querySelector("#app");
 const scriptUrl = new URL(import.meta.url);
@@ -127,6 +128,8 @@ const newsReadStorageKey = (userId) => `JUJU_NEWS_READ_${userId}`;
 const usernameFontStorageKey = (userId) => `JUJU_USERNAME_FONT_${userId}`;
 const usernameFontSeenStorageKey = (userId) => `JUJU_USERNAME_FONT_SEEN_${userId}`;
 const QR_CAMERA_ALLOWED_STORAGE = "JUJU_QR_CAMERA_ALLOWED";
+const QR_SCAN_INTERVAL_MS = 180;
+const QR_SCAN_MAX_WIDTH = 720;
 const NEWS_LOCAL_STORAGE = "JUJU_LOCAL_NEWS_POSTS";
 const CALENDAR_IMAGE_STORAGE = "JUJU_CALENDAR_IMAGE";
 const CALENDAR_SETTING_KEY = "calendar_image";
@@ -310,14 +313,14 @@ function appErrorMessage(error) {
     message.includes("Permission dismissed")
   ) {
     localStorage.removeItem(QR_CAMERA_ALLOWED_STORAGE);
-    return "カメラの使用が許可されていません。Androidの場合はブラウザのサイト設定からカメラを許可して、もう一度「カメラを起動」を押してください。難しい場合は下の「写真からQRを読む」を使えます。";
+    return "カメラの使用が許可されていません。Androidの場合はブラウザのサイト設定からカメラを許可して、もう一度「カメラを起動」を押してください。";
   }
   if (
     name === "NotFoundError" ||
     message.includes("Requested device not found") ||
     message.includes("No camera")
   ) {
-    return "この端末で利用できるカメラが見つかりませんでした。標準カメラでQRを開くか、「写真からQRを読む」を試してください。";
+    return "この端末で利用できるカメラが見つかりませんでした。標準カメラで店頭QRを開いてください。";
   }
   if (message.includes("feedback_messages")) {
     return "ご意見箱用のSupabaseテーブルがまだ反映されていません。最新の supabase/schema.sql をSQL Editorで再実行してください。";
@@ -340,6 +343,14 @@ function appErrorMessage(error) {
     return schemaSetupMessage;
   }
   return message;
+}
+
+function withTimeout(promise, ms, message) {
+  let timer = null;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
 function isMissingDbObject(error) {
@@ -1272,6 +1283,7 @@ function stopQrScanner() {
   if (qrStream) qrStream.getTracks().forEach((track) => track.stop());
   qrStream = null;
   qrDetecting = false;
+  lastQrScanAt = 0;
 }
 
 async function ensureJsQrDecoder() {
@@ -1331,6 +1343,12 @@ async function startQrScanner() {
     }
     const scan = async () => {
       if (!qrScanning) return;
+      const scanNow = performance.now();
+      if (scanNow - lastQrScanAt < QR_SCAN_INTERVAL_MS) {
+        qrFrame = requestAnimationFrame(scan);
+        return;
+      }
+      lastQrScanAt = scanNow;
       if (qrDetecting) {
         qrFrame = requestAnimationFrame(scan);
         return;
@@ -1343,9 +1361,12 @@ async function startQrScanner() {
             const codes = await detector.detect(video);
             value = codes[0]?.rawValue || "";
           } else if (canvas && ctx && jsQrDecoder) {
-            const width = video.videoWidth;
-            const height = video.videoHeight;
-            if (width && height) {
+            const sourceWidth = video.videoWidth;
+            const sourceHeight = video.videoHeight;
+            if (sourceWidth && sourceHeight) {
+              const scale = Math.min(1, QR_SCAN_MAX_WIDTH / sourceWidth);
+              const width = Math.max(1, Math.round(sourceWidth * scale));
+              const height = Math.max(1, Math.round(sourceHeight * scale));
               canvas.width = width;
               canvas.height = height;
               ctx.drawImage(video, 0, 0, width, height);
@@ -1354,7 +1375,10 @@ async function startQrScanner() {
             }
           }
           if (value) {
-            if (qrSessionConsumed) return;
+            if (qrSessionConsumed) {
+              stopQrScanner();
+              return;
+            }
             qrSessionConsumed = true;
             qrScanning = false;
             const now = Date.now();
@@ -1383,34 +1407,6 @@ async function startQrScanner() {
     qrFrame = requestAnimationFrame(scan);
   } catch (error) {
     stopQrScanner();
-    state = { busy: false, message: "", error: appErrorMessage(error) };
-    render();
-  }
-}
-
-async function decodeQrImage(file) {
-  if (!file) return;
-  try {
-    const bitmap = await createImageBitmap(file);
-    let value = "";
-    if ("BarcodeDetector" in window) {
-      const detector = new BarcodeDetector({ formats: ["qr_code"] });
-      const codes = await detector.detect(bitmap);
-      value = codes[0]?.rawValue || "";
-    }
-    if (!value) {
-      const canvas = document.createElement("canvas");
-      canvas.width = bitmap.width;
-      canvas.height = bitmap.height;
-      const ctx = canvas.getContext("2d", { willReadFrequently: true });
-      ctx.drawImage(bitmap, 0, 0);
-      const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const decoder = await ensureJsQrDecoder();
-      value = decoder(image.data, canvas.width, canvas.height, { inversionAttempts: "attemptBoth" })?.data || "";
-    }
-    if (!value) throw new Error("QRコードを読み取れませんでした。明るい場所でもう一度撮影してください。");
-    openQrValue(value);
-  } catch (error) {
     state = { busy: false, message: "", error: appErrorMessage(error) };
     render();
   }
@@ -2250,7 +2246,6 @@ function viewScan() {
       <div class="qr-scan-actions">
         <button class="primary" type="button" data-action="start-qr-scanner">\u30ab\u30e1\u30e9\u3092\u8d77\u52d5</button>
         <button type="button" data-action="stop-qr-scanner">\u505c\u6b62</button>
-        <label class="button-like qr-image-reader">\u5199\u771f\u304b\u3089QR\u3092\u8aad\u3080<input type="file" accept="image/*" capture="environment" data-action="qr-image-upload" /></label>
         <button data-link="/member-card">\u4f1a\u54e1\u8a3c\u3078\u623b\u308b</button>
       </div>
     </section>
@@ -3159,7 +3154,6 @@ document.addEventListener("change", (event) => {
   if (event.target.matches('[data-action="icon-crop-x"]')) setIconEditorValue("x", event.target.value);
   if (event.target.matches('[data-action="icon-crop-y"]')) setIconEditorValue("y", event.target.value);
   if (event.target.matches('[data-action="icon-crop-zoom"]')) setIconEditorValue("zoom", event.target.value);
-  if (event.target.matches('[data-action="qr-image-upload"]')) decodeQrImage(event.target.files?.[0]);
 });
 
 document.addEventListener("pointerdown", (event) => {
@@ -3218,5 +3212,20 @@ if ("serviceWorker" in navigator) {
     });
   }).catch(() => {});
 }
-await initSupabase();
-render();
+
+async function bootApp() {
+  app.innerHTML = `<main class="user-main"><section class="empty-state"><h1>cafeジュジュ</h1><p>会員証を読み込んでいます。</p></section></main>`;
+  try {
+    await withTimeout(initSupabase(), 6000, "通信初期化に時間がかかっています。もう一度開き直してください。");
+  } catch (error) {
+    state = { ...state, error: appErrorMessage(error) };
+  }
+  try {
+    await withTimeout(render(), 10000, "会員証の読み込みに時間がかかっています。通信状況を確認して、もう一度開き直してください。");
+  } catch (error) {
+    state = { ...state, error: appErrorMessage(error) };
+    paintShell(layout(`<section class="empty-state"><h1>読み込みに失敗しました</h1><p>${state.error}</p><button data-link="/member-card">再読み込み</button></section>`));
+  }
+}
+
+bootApp();

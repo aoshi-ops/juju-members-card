@@ -580,10 +580,10 @@ begin
     );
   end if;
 
-  if today_count >= 2 then
+  if today_count >= 1 then
     return jsonb_build_object(
       'recorded', false,
-      'message', '本日の来店記録は上限に達しています。本日の来店：2 / 2回'
+      'message', '本日の来店記録は上限に達しています。本日の来店：1 / 1回'
     );
   end if;
 
@@ -610,7 +610,7 @@ begin
 
   return jsonb_build_object(
     'recorded', true,
-    'message', '来店を記録しました。本日の来店：' || (today_count + 1) || ' / 2回 今回の獲得ポイント：' || points || 'pt 現在のランクポイント：' || rank_points || 'pt'
+    'message', '来店を記録しました。本日の来店：' || (today_count + 1) || ' / 1回 今回の獲得ポイント：' || points || 'pt 現在のランクポイント：' || rank_points || 'pt'
   );
 end;
 $$;
