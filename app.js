@@ -118,6 +118,8 @@ const ADMIN_DEMO_ID = "joujoustaff";
 const ADMIN_DEMO_PASSWORD = "joujoufirstanniversary";
 const ADMIN_DEMO_STORAGE = "JUJU_ADMIN_DEMO_AUTH";
 const ADMIN_APP_STORAGE = "JUJU_ADMIN_APP";
+const ADMIN_USERS_UNLOCK_PASSWORD = "juju4649";
+const ADMIN_USERS_UNLOCK_TTL_MS = 30 * 60 * 1000;
 const PENDING_REGISTRATION_STORAGE = "JUJU_PENDING_REGISTRATION";
 const DEFAULT_SUPABASE_URL = "https://qaiedhueykxoodagbkda.supabase.co";
 const DEFAULT_SUPABASE_ANON_KEY = "sb_publishable_f4X3hypSAb24Dt__vhElKA_yT6vDa2x";
@@ -133,6 +135,7 @@ const QR_SCAN_MAX_WIDTH = 720;
 const NEWS_LOCAL_STORAGE = "JUJU_LOCAL_NEWS_POSTS";
 const CALENDAR_IMAGE_STORAGE = "JUJU_CALENDAR_IMAGE";
 const CALENDAR_SETTING_KEY = "calendar_image";
+const RESERVATION_URL = "https://tabelog.com/tokyo/A1319/A131903/13311160/";
 const FEEDBACK_LOCAL_STORAGE = "JUJU_LOCAL_FEEDBACK_MESSAGES";
 const usernameFontOptions = [
   { id: "hina", label: "\u3072\u306a\u660e\u671d", note: "\u6a19\u6e96", className: "username-font-hina", cssStack: "\"JujuHinaMincho\", \"Yu Mincho\", serif", minRank: 1 },
@@ -204,6 +207,14 @@ const invalidateMyDataCache = () => { myDataCache = null; };
 
 function isDemoAdmin() {
   return localStorage.getItem(ADMIN_DEMO_STORAGE) === "true";
+}
+
+function isAdminUsersUnlocked() {
+  return Boolean(state.adminUsersUnlockedAt && Date.now() - state.adminUsersUnlockedAt < ADMIN_USERS_UNLOCK_TTL_MS);
+}
+
+function clearAdminUsersUnlock() {
+  state = { ...state, adminUsersUnlockedAt: 0 };
 }
 
 function isAdminLaunchQuery() {
@@ -596,8 +607,10 @@ async function currentSession() {
 }
 
 async function signOut() {
+  if (!window.confirm("ログアウトしますか？")) return;
   if (supabase) await supabase.auth.signOut();
   localStorage.removeItem(ADMIN_DEMO_STORAGE);
+  clearAdminUsersUnlock();
   session = null;
   invalidateMyDataCache();
   navigate("/login");
@@ -1004,6 +1017,7 @@ function calendarModal(imageUrl) {
           <button type="button" data-action="close-calendar-modal">\u9589\u3058\u308b</button>
         </div>
         <img src="${imageUrl || calendarImageFallback()}" alt="\u55b6\u696d\u65e5\u30ab\u30ec\u30f3\u30c0\u30fc" />
+        <a class="calendar-reservation-button" href="${RESERVATION_URL}" target="_blank" rel="noopener">お席のご予約はこちらから</a>
       </section>
     </div>
   `;
@@ -1109,6 +1123,45 @@ function localFeedbackMessages() {
     return JSON.parse(localStorage.getItem(FEEDBACK_LOCAL_STORAGE) || "[]");
   } catch {
     return [];
+  }
+}
+
+async function requestPasswordReset(event) {
+  event?.preventDefault?.();
+  try {
+    const formElement = document.querySelector('[data-form="login"]');
+    if (!formElement) throw new Error("ログイン画面を開き直してから、もう一度お試しください。");
+    const email = String(new FormData(formElement).get("email") || "").trim();
+    if (!email) throw new Error("再設定メールを送るメールアドレスを入力してください。");
+    if (!supabase) throw new Error("通信設定を読み込めませんでした。時間をおいて再読み込みしてください。");
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: absoluteUrl("/login?reset=1")
+    });
+    if (error) throw error;
+    state = { busy: false, message: "パスワード再設定メールを送信しました。メール内のリンクから新しいパスワードを設定してください。", error: "" };
+  } catch (error) {
+    state = { busy: false, message: "", error: appErrorMessage(error) };
+  }
+  render();
+}
+
+async function updatePassword(event) {
+  event?.preventDefault?.();
+  const formElement = formFromEvent(event) || document.querySelector('[data-form="password-update"]');
+  if (!formElement?.reportValidity?.()) return;
+  const form = new FormData(formElement);
+  const password = String(form.get("password") || "");
+  const confirmPassword = String(form.get("confirm_password") || "");
+  try {
+    if (password !== confirmPassword) throw new Error("確認用パスワードが一致しません。");
+    if (!supabase) throw new Error("通信設定を読み込めませんでした。時間をおいて再読み込みしてください。");
+    const { error } = await supabase.auth.updateUser({ password });
+    if (error) throw error;
+    state = { busy: false, message: "パスワードを更新しました。新しいパスワードでログインできます。", error: "" };
+    navigate("/member-card");
+  } catch (error) {
+    state = { busy: false, message: "", error: appErrorMessage(error) };
+    render();
   }
 }
 
@@ -1717,6 +1770,40 @@ async function deleteCreatedCoupon(couponId) {
   render();
 }
 
+function handleAdminUsersUnlock(event) {
+  event.preventDefault();
+  const formElement = formFromEvent(event);
+  const password = String(new FormData(formElement).get("password") || "");
+  if (password !== ADMIN_USERS_UNLOCK_PASSWORD) {
+    state = { ...state, message: "", error: "登録者一覧の確認パスワードが違います。" };
+    render();
+    return;
+  }
+  state = { ...state, adminUsersUnlockedAt: Date.now(), message: "登録者一覧のロックを30分間解除しました。", error: "" };
+  render();
+}
+
+async function deleteAdminUser(userId, label = "") {
+  const name = label ? decodeURIComponent(label) : "この会員";
+  if (!window.confirm(`${name} の会員情報を削除しますか？来店履歴、ポイント履歴、保有クーポンなども削除されます。`)) return;
+  if (!window.confirm("この操作は取り消せません。本当に削除しますか？")) return;
+  try {
+    if (isDemoAdmin()) {
+      state = { busy: false, message: "デモ管理では会員削除操作の確認だけ行いました。", error: "" };
+      navigate("/admin/users");
+      return;
+    }
+    if (!supabase) throw new Error("Supabase接続が必要です。");
+    const { error } = await supabase.from("users").delete().eq("id", userId);
+    if (error) throw error;
+    state = { busy: false, message: "会員情報を削除しました。", error: "" };
+    navigate("/admin/users");
+  } catch (error) {
+    state = { busy: false, message: "", error: appErrorMessage(error) };
+    render();
+  }
+}
+
 async function grantPurchasePermission(event) {
   event.preventDefault();
   const form = new FormData(event.currentTarget);
@@ -2031,6 +2118,23 @@ async function viewLogin() {
     return viewAdminLogin();
   }
   const current = isConfigured() ? await currentSession() : null;
+  const isPasswordReset = new URLSearchParams(location.search).get("reset") === "1";
+  if (current?.user && isPasswordReset) {
+    return html`
+      <main class="auth-page">
+        <section class="auth-panel">
+          <h1>パスワード再設定</h1>
+          <p>新しいパスワードを入力してください。</p>
+          ${notice()}
+          <form data-form="password-update">
+            <label>新しいパスワード<input name="password" type="password" minlength="8" required autocomplete="new-password" /></label>
+            <label>新しいパスワード（確認）<input name="confirm_password" type="password" minlength="8" required autocomplete="new-password" /></label>
+            <button class="primary" type="submit">パスワードを更新</button>
+          </form>
+        </section>
+      </main>
+    `;
+  }
   if (current?.user && !appPath().startsWith("/admin")) {
     navigate("/member-card");
     return "";
@@ -2049,6 +2153,7 @@ async function viewLogin() {
         </form>
         <div class="auth-links">
           <button data-link="/register">会員登録</button>
+          <button type="button" data-action="password-reset">パスワードを忘れた方</button>
         </div>
       </section>
     </main>
@@ -2674,7 +2779,20 @@ async function viewAdminDashboard() {
   `, true);
 }
 
+function viewAdminUsersLocked() {
+  return layout(html`
+    ${adminModeBanner()}
+    <section class="page-head"><h1>登録者一覧</h1><p>本名、誕生日、性別、年齢を含むため、表示前に追加パスワードを確認します。</p></section>
+    <form class="admin-form admin-users-unlock" data-form="admin-users-unlock">
+      <label>確認パスワード<input name="password" type="password" required autocomplete="current-password" /></label>
+      <p class="form-note">ページをリフレッシュするか、30分経過すると再度要求されます。</p>
+      <button class="primary" type="submit">登録者一覧を表示</button>
+    </form>
+  `, true);
+}
+
 async function viewAdminUsers() {
+  if (!isAdminUsersUnlocked()) return viewAdminUsersLocked();
   const data = await loadAdminData(null, { includeActivity: false, includeCoupons: false, includePurchasePermissions: false });
   const query = (state.adminUserSearch || "").trim().toLowerCase();
   const users = query ? data.users.filter((user) => adminUserMatches(user, query)) : data.users;
@@ -2709,6 +2827,7 @@ function adminUserMatches(user, query) {
 }
 
 async function viewAdminUserDetail() {
+  if (!isAdminUsersUnlocked()) return viewAdminUsersLocked();
   const userId = appPath().split("/").pop();
   const data = await loadAdminData(userId);
   const user = data.users[0];
@@ -2758,6 +2877,10 @@ async function viewAdminUserDetail() {
     <section class="list-section history-box"><h2>来店履歴</h2><div class="history-scroll">${data.visits.length ? data.visits.map((visit) => `<article class="item"><strong>${visitLabel(visit.visit_type)} / ${visit.point_value}pt</strong><span>${yenDate(visit.visited_at)}</span></article>`).join("") : `<p class="empty">来店履歴はまだありません。</p>`}</div></section>
     <section class="list-section history-box"><h2>ポイント履歴</h2><div class="history-scroll">${data.pointEvents.map((p) => `<article class="item"><strong>${p.point_type} / ${p.point_value}pt</strong><span>${p.memo || ""}</span><small>${yenDate(p.created_at)}</small></article>`).join("")}</div></section>
     <section class="list-section history-box"><h2>ユーザーログ</h2><div class="history-scroll">${(data.userLogs || []).length ? data.userLogs.map((log) => `<article class="item"><strong>${userLogTitle(log)}</strong><span>${escapeHtml(log.old_value || "-")} → ${escapeHtml(log.new_value || "-")}</span><small>${yenDate(log.changed_at)}</small></article>`).join("") : `<p class="empty">ユーザー情報の編集履歴はまだありません。</p>`}</div></section>
+    <section class="list-section danger-zone"><h2>会員情報の削除</h2>
+      <p>この会員プロフィールと、紐づく来店履歴・ポイント履歴・保有クーポンなどを削除します。</p>
+      <button type="button" data-action="delete-admin-user" data-user-id="${escapeHtml(user.id)}" data-user-label="${encodeURIComponent(user.real_name || user.member_number || "この会員")}">会員情報を削除</button>
+    </section>
   `, true);
 }
 
@@ -3020,6 +3143,7 @@ document.addEventListener("click", (event) => {
   if (action.dataset.action === "logout") signOut();
   if (action.dataset.action === "exit-demo-admin") exitDemoAdmin();
   if (action.dataset.action === "login-user") handleLogin(event);
+  if (action.dataset.action === "password-reset") requestPasswordReset(event);
   if (action.dataset.action === "admin-login") handleAdminLogin(event);
   if (action.dataset.action === "save-config") handleConfig(event);
   if (action.dataset.action === "register-member") handleRegister(event);
@@ -3093,6 +3217,7 @@ document.addEventListener("click", (event) => {
   if (action.dataset.action === "claim-coupon") claimCoupon(action.dataset.couponId);
   if (action.dataset.action === "delete-granted-coupon") deleteGrantedCoupon(action.dataset.userCouponId);
   if (action.dataset.action === "delete-created-coupon") deleteCreatedCoupon(action.dataset.couponId);
+  if (action.dataset.action === "delete-admin-user") deleteAdminUser(action.dataset.userId, action.dataset.userLabel || "");
   if (action.dataset.action === "save-card-image") saveMemberCardImage();
   if (action.dataset.action === "revoke-purchase-permission") revokePurchasePermission(action.dataset.userId);
   if (action.dataset.action === "delete-news") deleteNewsPost(action.dataset.newsId, action.dataset.newsUrl || "");
@@ -3170,7 +3295,9 @@ document.addEventListener("submit", (event) => {
   if (!form) return;
   event.preventDefault();
   if (form === "login") handleLogin(event);
+  if (form === "password-update") updatePassword(event);
   if (form === "admin-login") handleAdminLogin(event);
+  if (form === "admin-users-unlock") handleAdminUsersUnlock(event);
   if (form === "register") handleRegister(event);
   if (form === "complete-profile") handleCompleteProfile(event);
   if (form === "config") handleConfig(event);

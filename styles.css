@@ -1247,6 +1247,27 @@ form {
   background: rgba(255,255,255,0.04);
 }
 
+.admin-users-unlock {
+  max-width: 520px;
+}
+
+.danger-zone {
+  border-color: rgba(255, 138, 138, 0.42);
+  background:
+    linear-gradient(135deg, rgba(88, 24, 24, 0.76), rgba(22, 12, 10, 0.92)),
+    rgba(20, 20, 20, 0.88);
+}
+
+.danger-zone p {
+  color: #ffd0d0;
+}
+
+.danger-zone button {
+  border-color: rgba(255, 138, 138, 0.58);
+  color: #ffe6e6;
+  background: rgba(130, 24, 24, 0.32);
+}
+
 .coupon-grant-row {
   display: flex;
   align-items: center;
@@ -1802,11 +1823,24 @@ form {
   display: block;
   width: auto;
   max-width: 100%;
-  max-height: calc(88svh - 92px);
+  max-height: calc(88svh - 150px);
   justify-self: center;
   object-fit: contain;
   border-radius: 8px;
   background: rgba(255,255,255,0.04);
+}
+
+.calendar-reservation-button {
+  display: block;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(240, 213, 139, 0.8);
+  border-radius: 8px;
+  color: #15110a;
+  background: linear-gradient(135deg, var(--gold-2), #fff1b8);
+  font-weight: 900;
+  text-align: center;
+  text-decoration: none;
 }
 
 .modal-head {

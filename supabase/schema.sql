@@ -1060,6 +1060,10 @@ create policy "users_update_own_or_staff" on public.users
 for update using (auth_user_id = auth.uid() or public.is_staff())
 with check (auth_user_id = auth.uid() or public.is_staff());
 
+drop policy if exists "users_admin_delete" on public.users;
+create policy "users_admin_delete" on public.users
+for delete using (public.is_admin());
+
 drop policy if exists "visits_select_own_or_staff" on public.visits;
 create policy "visits_select_own_or_staff" on public.visits
 for select using (user_id = public.current_app_user_id() or public.is_staff());
