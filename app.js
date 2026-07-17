@@ -587,6 +587,17 @@ async function initSupabase() {
   supabase = createClient(url, anon);
 }
 
+async function consumePasswordRecoveryCode() {
+  if (!supabase) return;
+  const params = new URLSearchParams(location.search);
+  const code = params.get("code");
+  const isRecovery = params.get("reset") === "1" || params.get("type") === "recovery";
+  if (!code || !isRecovery) return;
+  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  if (error) throw error;
+  history.replaceState({}, "", publicUrl("/login?reset=1"));
+}
+
 function rankFor(points) {
   return ranks.find((rank) => points >= rank.min && (rank.max === null || points <= rank.max)) || ranks[0];
 }
@@ -1134,6 +1145,8 @@ async function requestPasswordReset(event) {
     const email = String(new FormData(formElement).get("email") || "").trim();
     if (!email) throw new Error("再設定メールを送るメールアドレスを入力してください。");
     if (!supabase) throw new Error("通信設定を読み込めませんでした。時間をおいて再読み込みしてください。");
+    state = { busy: true, message: "パスワード再設定メールを送信しています。", error: "" };
+    render();
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: absoluteUrl("/login?reset=1")
     });
@@ -2153,7 +2166,7 @@ async function viewLogin() {
         </form>
         <div class="auth-links">
           <button data-link="/register">会員登録</button>
-          <button type="button" data-action="password-reset">パスワードを忘れた方</button>
+          <button type="button" data-action="password-reset" ${state.busy ? "disabled" : ""}>${state.busy ? "送信中" : "パスワードを忘れた方"}</button>
         </div>
       </section>
     </main>
@@ -3344,6 +3357,7 @@ async function bootApp() {
   app.innerHTML = `<main class="user-main"><section class="empty-state"><h1>cafeジュジュ</h1><p>会員証を読み込んでいます。</p></section></main>`;
   try {
     await withTimeout(initSupabase(), 6000, "通信初期化に時間がかかっています。もう一度開き直してください。");
+    await withTimeout(consumePasswordRecoveryCode(), 6000, "パスワード再設定リンクの確認に時間がかかっています。もう一度開き直してください。");
   } catch (error) {
     state = { ...state, error: appErrorMessage(error) };
   }
