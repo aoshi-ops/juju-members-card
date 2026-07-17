@@ -1151,7 +1151,7 @@ async function requestPasswordReset(event) {
       redirectTo: absoluteUrl("/login?reset=1")
     });
     if (error) throw error;
-    state = { busy: false, message: "パスワード再設定メールを送信しました。メール内のリンクから新しいパスワードを設定してください。", error: "" };
+    state = { busy: false, message: "パスワード再設定メールの送信リクエストを受け付けました。届かない場合は、迷惑メール、受信拒否設定、入力したメールアドレスをご確認ください。", error: "" };
   } catch (error) {
     state = { busy: false, message: "", error: appErrorMessage(error) };
   }
@@ -2168,6 +2168,7 @@ async function viewLogin() {
           <button data-link="/register">会員登録</button>
           <button type="button" data-action="password-reset" ${state.busy ? "disabled" : ""}>${state.busy ? "送信中" : "パスワードを忘れた方"}</button>
         </div>
+        <p class="password-reset-help">再設定メールが届かない場合は、迷惑メールフォルダと受信拒否設定をご確認ください。解決しない場合は <a href="mailto:${contactInfo.email}?subject=${encodeURIComponent("cafeジュジュ パスワード再設定について")}">${contactInfo.email}</a> までご連絡ください。</p>
       </section>
     </main>
   `;

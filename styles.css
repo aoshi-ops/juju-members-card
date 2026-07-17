@@ -323,6 +323,17 @@ form {
   margin-top: 18px;
 }
 
+.password-reset-help {
+  margin: 12px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.password-reset-help a {
+  color: var(--gold-2);
+}
+
 .soft-divider {
   border: 0;
   border-top: 1px solid var(--line);
