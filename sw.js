@@ -1,4 +1,4 @@
-const CACHE = "juju-members-v0.2.74";
+const CACHE = "juju-members-v0.2.75";
 const ASSETS = [
   "./",
   "index.html",
@@ -13,36 +13,7 @@ const ASSETS = [
   "assets/icons/app-icon-192.png",
   "assets/icons/app-icon-512.png",
   "assets/brand/joujou_logo_white.png",
-  "assets/brand/joujou_logo_black.png",
-  "assets/backgrounds/member-card-back.jpg",
-  "assets/backgrounds/app-bg.jpg",
-  "assets/backgrounds/contact-bg.jpg",
-  "assets/overlays/noise-static.jpg",
-  "assets/card/avatar-frame.jpg",
-  "assets/card/avatar-frame-fit.png",
-  "assets/card/avatar-frame.png",
-  "assets/card/card-back.jpg",
-  "assets/card/card-back-fit.jpg",
-  "assets/card/card-front.jpg",
-  "assets/card/card-front-fit.jpg",
-  "assets/card/relic-frame.jpg",
-  "assets/card/relic-frame-fit.png",
-  "assets/card/relic-frame.png",
-  "assets/card/sound-frame.jpg",
-  "assets/card/sound-frame-fit.png",
-  "assets/card/sound-frame.png",
-  "assets/calendar-icon.jpg",
-  "assets/mail-icon.jpg",
-  "assets/relics/byoudon-mamori.jpg",
-  "assets/relics/sange-box.jpg",
-  "assets/relics/ganenbutsu.jpg",
-  "assets/relics/black-phone.jpg",
-  "assets/relics/mother-puppet.jpg",
-  "assets/relics/horseshoe.jpg",
-  "assets/relics/ma-kun.jpg",
-  "assets/special-cards/sound-horror-5-front.jpg",
-  "assets/special-cards/sound-horror-5-back.jpg",
-  "assets/special-cards/gyuhi-ghost.gif"
+  "assets/backgrounds/app-bg.jpg"
 ];
 
 self.addEventListener("install", (event) => {

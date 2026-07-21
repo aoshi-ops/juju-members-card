@@ -120,6 +120,7 @@ const ADMIN_DEMO_STORAGE = "JUJU_ADMIN_DEMO_AUTH";
 const ADMIN_APP_STORAGE = "JUJU_ADMIN_APP";
 const ADMIN_USERS_UNLOCK_PASSWORD = "juju4649";
 const ADMIN_USERS_UNLOCK_TTL_MS = 30 * 60 * 1000;
+const MY_DATA_CACHE_TTL_MS = 30 * 1000;
 const PENDING_REGISTRATION_STORAGE = "JUJU_PENDING_REGISTRATION";
 const DEFAULT_SUPABASE_URL = "https://qaiedhueykxoodagbkda.supabase.co";
 const DEFAULT_SUPABASE_ANON_KEY = "sb_publishable_f4X3hypSAb24Dt__vhElKA_yT6vDa2x";
@@ -724,7 +725,7 @@ async function loadMyData() {
   if (!supabase) return demo;
   const current = await currentSession();
   if (!current) throw new Error("ログインが必要です。");
-  if (myDataCache?.authUserId === current.user.id && Date.now() - myDataCache.at < 8000) {
+  if (myDataCache?.authUserId === current.user.id && Date.now() - myDataCache.at < MY_DATA_CACHE_TTL_MS) {
     return myDataCache.data;
   }
 
@@ -2957,6 +2958,16 @@ function pieChart(segments) {
   `;
 }
 
+function adminRegistrationSummary(data) {
+  const total = (data.users || []).length;
+  return html`
+    <div class="analytics-summary">
+      <span>登録総数</span>
+      <strong>${total}</strong>
+    </div>
+  `;
+}
+
 async function viewAdminDashboard() {
   const data = await loadAdminData(null, { includeActivity: false, includeCoupons: false, includePurchasePermissions: false });
   const mode = state.analyticsMode || "gender";
@@ -2971,6 +2982,7 @@ async function viewAdminDashboard() {
           ${Object.entries(analyticsLabels).map(([key, label]) => `<button type="button" class="${mode === key ? "active" : ""}" data-action="analytics-mode" data-mode="${key}">${label}</button>`).join("")}
         </div>
       </div>
+      ${adminRegistrationSummary(data)}
       ${pieChart(segments)}
     </section>
   `, true);

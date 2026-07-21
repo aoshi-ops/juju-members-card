@@ -129,6 +129,13 @@ button, input, select, textarea {
   font-family: "JujuTaisho", "JujuHinaMincho", serif;
 }
 
+body:has(.admin-main) .topbar,
+body:has(.admin-main) .topbar button,
+body:has([data-form="admin-login"]) .topbar,
+body:has([data-form="admin-login"]) .topbar button {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", sans-serif;
+}
+
 button {
   border: 1px solid var(--line);
   background: rgba(36, 24, 14, 0.86);
@@ -1355,6 +1362,30 @@ form {
   grid-template-columns: 220px 1fr;
   align-items: center;
   gap: 22px;
+}
+
+.analytics-summary {
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  align-items: baseline;
+  gap: 12px;
+  width: fit-content;
+  margin: 0 0 18px;
+  padding: 10px 14px;
+  border: 1px solid rgba(225, 199, 131, 0.28);
+  border-radius: 8px;
+  background: rgba(12, 12, 11, 0.42);
+}
+
+.analytics-summary span {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.analytics-summary strong {
+  color: var(--gold-2);
+  font-size: 28px;
+  line-height: 1;
 }
 
 .pie {
