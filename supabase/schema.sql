@@ -1646,7 +1646,7 @@ insert into public.special_cards (
 )
 values (
   'gyuhi-ghost-ar-debug',
-  '求肥おばけ',
+  'おばけ',
   'デバッグ用。お化けをタップするとAR起動確認を表示する特別カードです。',
   'debug_ar',
   'assets/special-cards/gyuhi-ghost.gif',

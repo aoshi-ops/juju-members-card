@@ -3176,7 +3176,7 @@ async function loadAdminSpecialCards() {
     }, {
       id: "demo-ghost-ar-card",
       slug: GHOST_AR_CARD_SLUG,
-      title: "求肥おばけ",
+      title: "おばけ",
       description: "デバッグ用。JUJU-000001にのみ付与するAR起動つき特別カードです。",
       card_type: "debug_ar",
       front_image_url: "assets/special-cards/gyuhi-ghost.gif",

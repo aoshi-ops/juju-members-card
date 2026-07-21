@@ -37,7 +37,7 @@ insert into public.special_cards (
 )
 values (
   'gyuhi-ghost-ar-debug',
-  '求肥おばけ',
+  'おばけ',
   'デバッグ用。お化けをタップするとAR起動確認を表示する特別カードです。',
   'debug_ar',
   'assets/special-cards/gyuhi-ghost.gif',
@@ -80,7 +80,7 @@ target_user as (
   limit 1
 )
 insert into public.special_card_entries (special_card_id, user_id, point_value, stamp_count, memo)
-select target_card.id, target_user.id, 0, 0, '求肥おばけARカード デバッグ付与'
+select target_card.id, target_user.id, 0, 0, 'おばけARカード デバッグ付与'
 from target_card
 cross join target_user
 on conflict (user_id, special_card_id) do nothing;
