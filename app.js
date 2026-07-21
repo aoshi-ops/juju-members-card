@@ -2624,7 +2624,7 @@ function specialCardFace(card, face) {
 function specialCardItem(entry, index = 0) {
   const card = specialCardMeta(entry);
   return html`
-    <article class="special-card-shell ${state.flippedSpecialCard === (entry.id || card.id) ? "is-flipped" : ""}" data-action="flip-special-card" data-special-card-id="${escapeHtml(entry.id || card.id || String(index))}">
+    <article class="special-card-shell" data-action="flip-special-card" data-special-card-id="${escapeHtml(entry.id || card.id || String(index))}">
       <div class="special-card-stage">
         ${specialCardFace(card, "front")}
         ${specialCardFace(card, "back")}
@@ -3492,9 +3492,7 @@ document.addEventListener("click", (event) => {
   }
   if (action.dataset.action === "flip-special-card") {
     if (event.target.closest("[data-no-flip]")) return;
-    const id = action.dataset.specialCardId || "";
-    state = { ...state, flippedSpecialCard: state.flippedSpecialCard === id ? "" : id };
-    render();
+    action.classList.toggle("is-flipped");
   }
   if (action.dataset.action === "record-visit") recordVisit(action.dataset.type);
   if (action.dataset.action === "record-sound") recordSoundHorror(action.dataset.id);

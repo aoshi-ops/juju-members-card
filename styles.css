@@ -1510,7 +1510,7 @@ form {
 
 .special-card-shell {
   position: relative;
-  aspect-ratio: 1545 / 940;
+  aspect-ratio: 1515 / 915;
   border: 0;
   padding: 0;
   background: transparent;
@@ -1519,50 +1519,20 @@ form {
   scroll-snap-align: center;
 }
 
-.special-card-shell::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: 3;
-  border-radius: 8px;
-  pointer-events: none;
-  background: linear-gradient(110deg, transparent 18%, rgba(255,255,255,0.44) 48%, transparent 72%);
-  opacity: 0;
-  transform: translateX(-42%) skewX(-12deg);
-}
-
-.special-card-shell.is-flipped::after {
-  animation: special-card-shine 720ms ease;
-}
-
 .special-card-stage {
   position: absolute;
   inset: 0;
   transform-style: preserve-3d;
-  transition: transform 720ms cubic-bezier(.18, .82, .22, 1);
+  transition: transform 520ms ease;
 }
 
 .special-card-shell.is-flipped .special-card-stage {
   transform: rotateY(180deg);
-  animation: special-card-pop 720ms ease;
 }
 
-@keyframes special-card-pop {
-  0% { filter: drop-shadow(0 16px 22px rgba(0,0,0,0.28)); }
-  48% { filter: drop-shadow(0 26px 34px rgba(225,199,131,0.28)); }
-  100% { filter: drop-shadow(0 16px 22px rgba(0,0,0,0)); }
-}
-
-@keyframes special-card-shine {
-  0% {
-    opacity: 0;
-    transform: translateX(-48%) skewX(-12deg);
-  }
-  38% { opacity: 0.7; }
-  100% {
-    opacity: 0;
-    transform: translateX(48%) skewX(-12deg);
-  }
+.special-card-shell:not(.is-flipped) .back,
+.special-card-shell.is-flipped .front {
+  visibility: hidden;
 }
 
 .special-card-face {
@@ -1572,8 +1542,10 @@ form {
   border: 1px solid rgba(0, 0, 0, 0.38);
   border-radius: 8px;
   background: #f7f7f5;
-  box-shadow: 0 18px 28px rgba(0, 0, 0, 0.38);
+  box-shadow: 0 12px 22px rgba(0, 0, 0, 0.22);
   backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform-style: preserve-3d;
 }
 
 .special-card-face.back {
@@ -1631,7 +1603,7 @@ form {
 
 .admin-special-card-preview img {
   width: 100%;
-  aspect-ratio: 1545 / 940;
+  aspect-ratio: 1515 / 915;
   object-fit: cover;
   border-radius: 7px;
   background: rgba(255,255,255,0.04);
