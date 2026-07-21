@@ -2628,14 +2628,19 @@ function isGhostArCard(card) {
   return card?.slug === GHOST_AR_CARD_SLUG || metadata.interaction === "ghost_ar";
 }
 
+function specialCardDisplayTitle(card) {
+  return isGhostArCard(card) ? "おばけ" : card?.title || "特別カード";
+}
+
 function specialCardFace(card, face) {
   const image = face === "front" ? card.front_image_url : card.back_image_url;
-  const alt = `${card.title || "特別カード"} ${face === "front" ? "表" : "裏"}`;
+  const title = specialCardDisplayTitle(card);
+  const alt = `${title} ${face === "front" ? "表" : "裏"}`;
   const ghostAr = face === "front" && isGhostArCard(card);
   return html`
     <div class="special-card-face ${face}">
-      ${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(alt)}" />` : `<div class="special-card-placeholder">${escapeHtml(card.title || "特別カード")}</div>`}
-      ${ghostAr ? `<button type="button" class="special-card-ghost-hotspot" data-action="open-ghost-card-prompt" data-ghost-card-title="${escapeHtml(card.title || "特別カード")}" data-ghost-card-url="${escapeHtml(card.external_url || "")}" aria-label="お化けを見つけた？" data-no-flip></button>` : ""}
+      ${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(alt)}" />` : `<div class="special-card-placeholder">${escapeHtml(title)}</div>`}
+      ${ghostAr ? `<button type="button" class="special-card-ghost-hotspot" data-action="open-ghost-card-prompt" data-ghost-card-title="${escapeHtml(title)}" data-ghost-card-url="${escapeHtml(card.external_url || "")}" aria-label="お化けを見つけた？" data-no-flip></button>` : ""}
       ${face === "back" && card.external_url ? `<a class="special-card-account" href="${escapeHtml(card.external_url)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(card.external_label || "@kareranituite")} を開く" data-no-flip>${escapeHtml(card.external_label || "@kareranituite")}</a>` : ""}
     </div>
   `;
@@ -3207,14 +3212,15 @@ async function loadAdminSpecialCards() {
 
 function adminSpecialCardItem(card) {
   const open = state.adminSpecialCardOpen === card.id;
+  const title = specialCardDisplayTitle(card);
   return html`
     <article class="admin-special-card">
       <div class="admin-special-card-preview">
-        ${card.front_image_url ? `<img src="${escapeHtml(card.front_image_url)}" alt="${escapeHtml(card.title || "特別カード")} 表" />` : ""}
-        ${card.back_image_url ? `<img src="${escapeHtml(card.back_image_url)}" alt="${escapeHtml(card.title || "特別カード")} 裏" />` : ""}
+        ${card.front_image_url ? `<img src="${escapeHtml(card.front_image_url)}" alt="${escapeHtml(title)} 表" />` : ""}
+        ${card.back_image_url ? `<img src="${escapeHtml(card.back_image_url)}" alt="${escapeHtml(title)} 裏" />` : ""}
       </div>
       <div class="admin-special-card-body">
-        <strong>${escapeHtml(card.title || "特別カード")}</strong>
+        <strong>${escapeHtml(title)}</strong>
         <span>${escapeHtml(card.description || "")}</span>
         <small>${escapeHtml(card.card_type || "-")}</small>
         <button type="button" data-action="toggle-admin-special-card" data-special-card-id="${escapeHtml(card.id)}">表示</button>
