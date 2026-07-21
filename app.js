@@ -126,6 +126,7 @@ const DEFAULT_SUPABASE_ANON_KEY = "sb_publishable_f4X3hypSAb24Dt__vhElKA_yT6vDa2
 const iconStorageKey = (userId) => `JUJU_ICON_${userId}`;
 const relicStorageKey = (userId) => `JUJU_FAVORITE_RELIC_${userId}`;
 const couponEnsuredKey = (userId) => `JUJU_COUPON_READY_${userId}`;
+const couponSeenStorageKey = (userId) => `JUJU_COUPON_SEEN_${userId}`;
 const newsReadStorageKey = (userId) => `JUJU_NEWS_READ_${userId}`;
 const usernameFontStorageKey = (userId) => `JUJU_USERNAME_FONT_${userId}`;
 const usernameFontSeenStorageKey = (userId) => `JUJU_USERNAME_FONT_SEEN_${userId}`;
@@ -137,6 +138,7 @@ const CALENDAR_IMAGE_STORAGE = "JUJU_CALENDAR_IMAGE";
 const CALENDAR_SETTING_KEY = "calendar_image";
 const RESERVATION_URL = "https://tabelog.com/tokyo/A1319/A131903/13311160/";
 const FEEDBACK_LOCAL_STORAGE = "JUJU_LOCAL_FEEDBACK_MESSAGES";
+const ADMIN_MAILBOX_SEEN_STORAGE = "JUJU_ADMIN_MAILBOX_SEEN";
 const usernameFontOptions = [
   { id: "hina", label: "\u3072\u306a\u660e\u671d", note: "\u6a19\u6e96", className: "username-font-hina", cssStack: "\"JujuHinaMincho\", \"Yu Mincho\", serif", minRank: 1 },
   { id: "zero", label: "\u96f6\u30b4\u30b7\u30c3\u30af", note: "\u30e9\u30f3\u30af2\u3067\u89e3\u653e", className: "username-font-zero", cssStack: "\"JujuZeroGothic\", \"JujuHinaMincho\", serif", minRank: 2 },
@@ -566,6 +568,16 @@ async function ensureRegistrationCoupon(userId) {
   if (userId) localStorage.setItem(couponEnsuredKey(userId), "true");
 }
 
+async function ensureLifecycleCoupons() {
+  if (!supabase) return 0;
+  const result = await supabase.rpc("ensure_lifecycle_coupons");
+  if (result.error) {
+    if (isMissingDbObject(result.error)) return 0;
+    throw result.error;
+  }
+  return Number(result.data?.granted || 0);
+}
+
 async function cleanupUserCoupons(userId) {
   if (!supabase || !userId) return;
   const key = `JUJU_COUPON_CLEANUP_${userId}_${new Date().toISOString().slice(0, 10)}`;
@@ -573,6 +585,54 @@ async function cleanupUserCoupons(userId) {
   const { error } = await supabase.rpc("cleanup_my_coupons");
   if (error && !String(error.message || "").includes("function")) throw error;
   sessionStorage.setItem(key, "true");
+}
+
+function unreadCouponCount(coupons = [], userId, justGranted = 0) {
+  const seen = userId ? localStorage.getItem(couponSeenStorageKey(userId)) : "";
+  if (!seen) return justGranted;
+  const seenAt = new Date(seen).getTime();
+  if (Number.isNaN(seenAt)) return justGranted;
+  const issuedAfterSeen = coupons.filter((coupon) => {
+    const issuedAt = new Date(coupon.issued_at || 0).getTime();
+    return coupon.status === "available" && issuedAt > seenAt;
+  }).length;
+  return Math.max(justGranted, issuedAfterSeen);
+}
+
+function markCouponsSeen(userId) {
+  if (!userId) return;
+  localStorage.setItem(couponSeenStorageKey(userId), new Date().toISOString());
+  state.unreadCouponCount = 0;
+}
+
+function markAdminMailboxSeen() {
+  localStorage.setItem(ADMIN_MAILBOX_SEEN_STORAGE, new Date().toISOString());
+  state.adminUnreadFeedbackCount = 0;
+}
+
+async function refreshAdminMailboxUnreadCount(path = appPath()) {
+  if (!path.startsWith("/admin") || path === "/admin/login") return;
+  if (path === "/admin/mailbox") {
+    state.adminUnreadFeedbackCount = 0;
+    return;
+  }
+  const seen = localStorage.getItem(ADMIN_MAILBOX_SEEN_STORAGE);
+  if (!seen) {
+    state.adminUnreadFeedbackCount = 0;
+    return;
+  }
+  if (isDemoAdmin() || !supabase) {
+    state.adminUnreadFeedbackCount = localFeedbackMessages().filter((item) => new Date(item.created_at || 0) > new Date(seen)).length;
+    return;
+  }
+  const result = await optionalQuery(
+    supabase
+      .from("feedback_messages")
+      .select("id", { count: "exact", head: true })
+      .gt("created_at", seen),
+    []
+  );
+  state.adminUnreadFeedbackCount = result.count || 0;
 }
 
 async function initSupabase() {
@@ -642,6 +702,7 @@ async function loadMyData() {
   }
 
   const user = await ensureUserProfile(current.user);
+  const grantedCouponCount = await ensureLifecycleCoupons();
   await cleanupUserCoupons(user.id);
   const { data: profile } = await supabase
     .from("app_profiles")
@@ -682,14 +743,16 @@ async function loadMyData() {
     purchasePermissions: purchasePermissions.data || [],
     newsPosts: mergedNewsPosts,
     newsReads: newsReads.data || [],
-    unreadNewsCount
+    unreadNewsCount,
+    unreadCouponCount: unreadCouponCount(coupons.data || [], user.id, grantedCouponCount)
   };
   myDataCache = { authUserId: current.user.id, at: Date.now(), data };
   return data;
 }
 
-function applyUnreadNewsCount(data) {
+function applyUnreadCounts(data) {
   state.unreadNewsCount = data?.unreadNewsCount || 0;
+  state.unreadCouponCount = data?.unreadCouponCount || 0;
 }
 
 async function loadAdminData(userId = null, options = {}) {
@@ -2109,8 +2172,8 @@ function layout(content, admin = false) {
       <button class="brand" data-link="${admin ? "/admin/dashboard" : "/member-card"}"><img src="assets/brand/joujou_logo_white.png" alt="" aria-hidden="true" />cafeジュジュ</button>
       <nav>
         ${admin
-          ? `<button data-link="/admin/dashboard">管理</button><button data-link="/admin/users">登録者</button><button data-link="/admin/visits">履歴</button><button data-link="/admin/points">特別ポイント</button><button data-link="/admin/qr">QR表示</button><button data-link="/admin/coupons">クーポン</button><button data-link="/admin/calendar">カレンダー</button><button data-link="/admin/mailbox">メールボックス</button><button data-link="/admin/news">NEWS</button>`
-          : `<button data-link="/member-card">会員証</button><button data-link="/coupons">クーポン</button><button data-link="/special-cards">特別カード</button><button class="news-nav-button" data-link="/news">NEWS${state.unreadNewsCount ? `<span class="news-badge">${state.unreadNewsCount}</span>` : ""}</button><button data-link="/contact">コンタクト</button>`}
+          ? `<button data-link="/admin/dashboard">管理</button><button data-link="/admin/users">登録者</button><button data-link="/admin/visits">履歴</button><button data-link="/admin/points">特別ポイント</button><button data-link="/admin/qr">QR表示</button><button data-link="/admin/coupons">クーポン</button><button data-link="/admin/calendar">カレンダー</button><button data-link="/admin/mailbox">メールボックス${state.adminUnreadFeedbackCount ? `<span class="news-badge">${state.adminUnreadFeedbackCount}</span>` : ""}</button><button data-link="/admin/news">NEWS</button>`
+          : `<button data-link="/member-card">会員証</button><button data-link="/coupons">クーポン${state.unreadCouponCount ? `<span class="news-badge">${state.unreadCouponCount}</span>` : ""}</button><button data-link="/special-cards">特別カード</button><button class="news-nav-button" data-link="/news">NEWS${state.unreadNewsCount ? `<span class="news-badge">${state.unreadNewsCount}</span>` : ""}</button><button data-link="/contact">コンタクト</button>`}
         <button data-action="logout">ログアウト</button>
       </nav>
     </header>
@@ -2245,7 +2308,7 @@ async function viewCompleteProfile() {
 
 async function viewMemberCard() {
   const data = await loadMyData();
-  applyUnreadNewsCount(data);
+  applyUnreadCounts(data);
   const events = data.pointEvents;
   const points = sumRankPoints(events);
   const rank = rankFor(points);
@@ -2400,7 +2463,8 @@ function relicChoice(relic, current) {
 
 async function viewCoupons() {
   const data = await loadMyData();
-  applyUnreadNewsCount(data);
+  applyUnreadCounts(data);
+  markCouponsSeen(data.user.id);
   const selected = data.coupons.find((coupon) => coupon.id === state.selectedCouponId);
   return layout(html`
     <section class="page-head"><h1>クーポン</h1><p>使用時はスタッフに画面を見せてください。</p></section>
@@ -2415,13 +2479,19 @@ function couponMeta(userCoupon) {
   return userCoupon.coupons || userCoupon;
 }
 
+function couponExpiry(userCoupon) {
+  const coupon = couponMeta(userCoupon);
+  return userCoupon.expires_at || coupon.expires_at || "";
+}
+
 function couponStatusLabel(status) {
   return { available: "使用可能", used: "使用済み", expired: "期限切れ", disabled: "無効" }[status] || status || "使用可能";
 }
 
 function couponTicket(userCoupon) {
   const coupon = couponMeta(userCoupon);
-  const expires = coupon.expires_at ? yenDate(coupon.expires_at) : "無期限";
+  const expiresAt = couponExpiry(userCoupon);
+  const expires = expiresAt ? yenDate(expiresAt) : "無期限";
   return html`
     <button type="button" class="coupon-ticket ${userCoupon.status || ""}" data-action="open-coupon" data-coupon-id="${userCoupon.id}">
       <span class="ticket-kicker">${couponStatusLabel(userCoupon.status)}</span>
@@ -2433,7 +2503,8 @@ function couponTicket(userCoupon) {
 
 function couponModal(userCoupon) {
   const coupon = couponMeta(userCoupon);
-  const expires = coupon.expires_at ? yenDate(coupon.expires_at) : "無期限";
+  const expiresAt = couponExpiry(userCoupon);
+  const expires = expiresAt ? yenDate(expiresAt) : "無期限";
   return html`
     <div class="modal-backdrop" data-action="close-coupon">
       <section class="coupon-modal">
@@ -2568,7 +2639,7 @@ function newsPostCard(post, admin = false) {
 async function viewNews() {
   const data = await loadMyData();
   const posts = data.newsPosts || [];
-  applyUnreadNewsCount(data);
+  applyUnreadCounts(data);
   state.unreadNewsCount = 0;
   markNewsRead(data.user.id, posts).catch((error) => { state.error = appErrorMessage(error); });
   return layout(html`
@@ -2639,6 +2710,7 @@ async function viewAdminMailbox() {
     if (error) throw error;
     messages = data || [];
   }
+  markAdminMailboxSeen();
   return layout(html`
     ${adminModeBanner()}
     <section class="page-head"><h1>\u30e1\u30fc\u30eb\u30dc\u30c3\u30af\u30b9</h1><p>\u30e1\u30f3\u30d0\u30fc\u30ba\u30ab\u30fc\u30c9\u304b\u3089\u5c4a\u3044\u305f\u3054\u610f\u898b/\u3054\u611f\u60f3\u3092\u78ba\u8a8d\u3057\u307e\u3059\u3002</p></section>
@@ -2886,7 +2958,7 @@ async function viewAdminUserDetail() {
       </form>
     </section>
     <section class="list-section"><h2>保有クーポン</h2>
-      ${data.coupons.length ? data.coupons.map((item) => `<article class="item coupon-grant-row"><div><strong>${item.coupons?.title || "クーポン"}</strong><span>${item.coupons?.description || ""}</span><small>${couponStatusLabel(item.status)} / ${yenDate(item.issued_at)}</small></div><button type="button" data-action="delete-granted-coupon" data-user-coupon-id="${item.id}">削除</button></article>`).join("") : `<p class="empty">この会員のクーポンはありません。</p>`}
+      ${data.coupons.length ? data.coupons.map((item) => `<article class="item coupon-grant-row"><div><strong>${item.coupons?.title || "クーポン"}</strong><span>${item.coupons?.description || ""}</span><small>${couponStatusLabel(item.status)} / 付与 ${yenDate(item.issued_at)} / 期限 ${couponExpiry(item) ? yenDate(couponExpiry(item)) : "無期限"}</small></div><button type="button" data-action="delete-granted-coupon" data-user-coupon-id="${item.id}">削除</button></article>`).join("") : `<p class="empty">この会員のクーポンはありません。</p>`}
     </section>
     <section class="list-section history-box"><h2>来店履歴</h2><div class="history-scroll">${data.visits.length ? data.visits.map((visit) => `<article class="item"><strong>${visitLabel(visit.visit_type)} / ${visit.point_value}pt</strong><span>${yenDate(visit.visited_at)}</span></article>`).join("") : `<p class="empty">来店履歴はまだありません。</p>`}</div></section>
     <section class="list-section history-box"><h2>ポイント履歴</h2><div class="history-scroll">${data.pointEvents.map((p) => `<article class="item"><strong>${p.point_type} / ${p.point_value}pt</strong><span>${p.memo || ""}</span><small>${yenDate(p.created_at)}</small></article>`).join("")}</div></section>
@@ -3015,6 +3087,7 @@ async function render() {
   try {
     const path = appPath();
     if (path.startsWith("/admin") || isAdminLaunchQuery()) rememberAdminApp();
+    await refreshAdminMailboxUnreadCount(path);
     if (isAdminLaunchQuery() && !path.startsWith("/admin")) {
       replacePath("/admin/login");
       paintShell(viewAdminLogin());
