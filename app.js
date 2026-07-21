@@ -140,6 +140,7 @@ const CALENDAR_SETTING_KEY = "calendar_image";
 const RESERVATION_URL = "https://tabelog.com/tokyo/A1319/A131903/13311160/";
 const FEEDBACK_LOCAL_STORAGE = "JUJU_LOCAL_FEEDBACK_MESSAGES";
 const ADMIN_MAILBOX_SEEN_STORAGE = "JUJU_ADMIN_MAILBOX_SEEN";
+const GHOST_AR_CARD_SLUG = "gyuhi-ghost-ar-debug";
 const usernameFontOptions = [
   { id: "hina", label: "\u3072\u306a\u660e\u671d", note: "\u6a19\u6e96", className: "username-font-hina", cssStack: "\"JujuHinaMincho\", \"Yu Mincho\", serif", minRank: 1 },
   { id: "zero", label: "\u96f6\u30b4\u30b7\u30c3\u30af", note: "\u30e9\u30f3\u30af2\u3067\u89e3\u653e", className: "username-font-zero", cssStack: "\"JujuZeroGothic\", \"JujuHinaMincho\", serif", minRank: 2 },
@@ -2610,12 +2611,31 @@ function specialCardMeta(entry) {
   return entry.special_cards || entry;
 }
 
+function specialCardMetadata(card) {
+  if (!card?.metadata) return {};
+  if (typeof card.metadata === "string") {
+    try {
+      return JSON.parse(card.metadata);
+    } catch {
+      return {};
+    }
+  }
+  return card.metadata;
+}
+
+function isGhostArCard(card) {
+  const metadata = specialCardMetadata(card);
+  return card?.slug === GHOST_AR_CARD_SLUG || metadata.interaction === "ghost_ar";
+}
+
 function specialCardFace(card, face) {
   const image = face === "front" ? card.front_image_url : card.back_image_url;
   const alt = `${card.title || "特別カード"} ${face === "front" ? "表" : "裏"}`;
+  const ghostAr = face === "front" && isGhostArCard(card);
   return html`
     <div class="special-card-face ${face}">
       ${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(alt)}" />` : `<div class="special-card-placeholder">${escapeHtml(card.title || "特別カード")}</div>`}
+      ${ghostAr ? `<button type="button" class="special-card-ghost-hotspot" data-action="open-ghost-card-prompt" data-ghost-card-title="${escapeHtml(card.title || "特別カード")}" data-ghost-card-url="${escapeHtml(card.external_url || "")}" aria-label="お化けを見つけた？" data-no-flip></button>` : ""}
       ${face === "back" && card.external_url ? `<a class="special-card-account" href="${escapeHtml(card.external_url)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(card.external_label || "@kareranituite")} を開く" data-no-flip>${escapeHtml(card.external_label || "@kareranituite")}</a>` : ""}
     </div>
   `;
@@ -2623,13 +2643,32 @@ function specialCardFace(card, face) {
 
 function specialCardItem(entry, index = 0) {
   const card = specialCardMeta(entry);
+  const ghostAr = isGhostArCard(card);
   return html`
-    <article class="special-card-shell" data-action="flip-special-card" data-special-card-id="${escapeHtml(entry.id || card.id || String(index))}">
+    <article class="special-card-shell ${ghostAr ? "ghost-ar-card" : ""}" data-action="flip-special-card" data-special-card-id="${escapeHtml(entry.id || card.id || String(index))}">
       <div class="special-card-stage">
         ${specialCardFace(card, "front")}
-        ${specialCardFace(card, "back")}
+        ${ghostAr ? "" : specialCardFace(card, "back")}
       </div>
     </article>
+  `;
+}
+
+function ghostCardPromptModal(prompt) {
+  return html`
+    <div class="modal-backdrop" data-action="close-ghost-card-prompt">
+      <section class="coupon-modal ghost-card-modal">
+        <div class="modal-head">
+          <h2>${escapeHtml(prompt.title || "特別カード")}</h2>
+          <button type="button" data-action="close-ghost-card-prompt">閉じる</button>
+        </div>
+        <p class="ghost-card-question">“僕”を見つけた？</p>
+        <div class="ghost-card-actions">
+          <button type="button" class="primary" data-action="launch-ghost-card-url" data-ghost-card-url="${escapeHtml(prompt.url || "")}">はい</button>
+          <button type="button" data-action="close-ghost-card-prompt">いいえ</button>
+        </div>
+      </section>
+    </div>
   `;
 }
 
@@ -2645,6 +2684,7 @@ async function viewSpecialCards() {
         ${cards.map(specialCardItem).join("")}
       </section>
     ` : `<section class="empty-state">\u73fe\u5728\u8868\u793a\u3067\u304d\u308b\u7279\u5225\u30ab\u30fc\u30c9\u306f\u3042\u308a\u307e\u305b\u3093\u3002</section>`}
+    ${state.ghostCardPrompt ? ghostCardPromptModal(state.ghostCardPrompt) : ""}
   `);
 }
 
@@ -3133,6 +3173,19 @@ async function loadAdminSpecialCards() {
       external_label: "@kareranituite",
       unlock_condition_label: "サウンドホラーを5種類聞く",
       sort_order: 10
+    }, {
+      id: "demo-ghost-ar-card",
+      slug: GHOST_AR_CARD_SLUG,
+      title: "求肥おばけ",
+      description: "デバッグ用。JUJU-000001にのみ付与するAR起動つき特別カードです。",
+      card_type: "debug_ar",
+      front_image_url: "assets/special-cards/gyuhi-ghost.gif",
+      back_image_url: null,
+      external_url: "https://webar.styly.cc/v2/ar_contents/joujou_ghost",
+      external_label: "ARを起動",
+      unlock_condition_label: "デバッグ期間中、JUJU-000001のみ",
+      metadata: { interaction: "ghost_ar", version: 1 },
+      sort_order: 20
     }];
   }
   await loadAdminData(null, { includeUsers: false, includeActivity: false, includeCoupons: false, includePurchasePermissions: false });
@@ -3477,6 +3530,27 @@ document.addEventListener("click", (event) => {
     state = { ...state, adminSpecialCardOpen: state.adminSpecialCardOpen === id ? "" : id };
     render();
   }
+  if (action.dataset.action === "open-ghost-card-prompt") {
+    state = {
+      ...state,
+      ghostCardPrompt: {
+        title: action.dataset.ghostCardTitle || "特別カード",
+        url: action.dataset.ghostCardUrl || ""
+      }
+    };
+    render();
+  }
+  if (action.dataset.action === "close-ghost-card-prompt") {
+    if (event.target.closest(".ghost-card-modal") && !event.target.closest("button")) return;
+    state = { ...state, ghostCardPrompt: null };
+    render();
+  }
+  if (action.dataset.action === "launch-ghost-card-url") {
+    const url = action.dataset.ghostCardUrl || state.ghostCardPrompt?.url || "";
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+    state = { ...state, ghostCardPrompt: null };
+    render();
+  }
   if (action.dataset.action === "close-icon-editor") {
     if (event.target.closest(".icon-editor-modal") && !event.target.closest("button")) return;
     iconDrag = null;
@@ -3492,6 +3566,7 @@ document.addEventListener("click", (event) => {
   }
   if (action.dataset.action === "flip-special-card") {
     if (event.target.closest("[data-no-flip]")) return;
+    if (action.classList.contains("ghost-ar-card")) return;
     action.classList.toggle("is-flipped");
   }
   if (action.dataset.action === "record-visit") recordVisit(action.dataset.type);

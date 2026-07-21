@@ -1629,3 +1629,49 @@ set title = excluded.title,
     sort_order = excluded.sort_order,
     is_active = excluded.is_active,
     updated_at = now();
+
+insert into public.special_cards (
+  slug,
+  title,
+  description,
+  card_type,
+  front_image_url,
+  back_image_url,
+  external_url,
+  external_label,
+  unlock_condition_label,
+  metadata,
+  sort_order,
+  is_active
+)
+values (
+  'gyuhi-ghost-ar-debug',
+  '求肥おばけ',
+  'デバッグ用。お化けをタップするとAR起動確認を表示する特別カードです。',
+  'debug_ar',
+  'assets/special-cards/gyuhi-ghost.gif',
+  null,
+  'https://webar.styly.cc/v2/ar_contents/joujou_ghost',
+  'ARを起動',
+  'デバッグ期間中、JUJU-000001のみ',
+  jsonb_build_object(
+    'interaction', 'ghost_ar',
+    'target_member_number', 'JUJU-000001',
+    'version', 1
+  ),
+  20,
+  true
+)
+on conflict (slug) where slug is not null do update
+set title = excluded.title,
+    description = excluded.description,
+    card_type = excluded.card_type,
+    front_image_url = excluded.front_image_url,
+    back_image_url = excluded.back_image_url,
+    external_url = excluded.external_url,
+    external_label = excluded.external_label,
+    unlock_condition_label = excluded.unlock_condition_label,
+    metadata = excluded.metadata,
+    sort_order = excluded.sort_order,
+    is_active = excluded.is_active,
+    updated_at = now();
