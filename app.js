@@ -127,6 +127,7 @@ const iconStorageKey = (userId) => `JUJU_ICON_${userId}`;
 const relicStorageKey = (userId) => `JUJU_FAVORITE_RELIC_${userId}`;
 const couponEnsuredKey = (userId) => `JUJU_COUPON_READY_${userId}`;
 const couponSeenStorageKey = (userId) => `JUJU_COUPON_SEEN_${userId}`;
+const specialCardSeenStorageKey = (userId) => `JUJU_SPECIAL_CARD_SEEN_${userId}`;
 const newsReadStorageKey = (userId) => `JUJU_NEWS_READ_${userId}`;
 const usernameFontStorageKey = (userId) => `JUJU_USERNAME_FONT_${userId}`;
 const usernameFontSeenStorageKey = (userId) => `JUJU_USERNAME_FONT_SEEN_${userId}`;
@@ -578,6 +579,16 @@ async function ensureLifecycleCoupons() {
   return Number(result.data?.granted || 0);
 }
 
+async function ensureSpecialCards() {
+  if (!supabase) return 0;
+  const result = await supabase.rpc("ensure_special_cards");
+  if (result.error) {
+    if (isMissingDbObject(result.error)) return 0;
+    throw result.error;
+  }
+  return Number(result.data?.granted || 0);
+}
+
 async function cleanupUserCoupons(userId) {
   if (!supabase || !userId) return;
   const key = `JUJU_COUPON_CLEANUP_${userId}_${new Date().toISOString().slice(0, 10)}`;
@@ -599,10 +610,25 @@ function unreadCouponCount(coupons = [], userId, justGranted = 0) {
   return Math.max(justGranted, issuedAfterSeen);
 }
 
+function unreadSpecialCardCount(cards = [], userId, justGranted = 0) {
+  const seen = userId ? localStorage.getItem(specialCardSeenStorageKey(userId)) : "";
+  if (!seen) return justGranted;
+  const seenAt = new Date(seen).getTime();
+  if (Number.isNaN(seenAt)) return justGranted;
+  const issuedAfterSeen = cards.filter((card) => new Date(card.created_at || 0).getTime() > seenAt).length;
+  return Math.max(justGranted, issuedAfterSeen);
+}
+
 function markCouponsSeen(userId) {
   if (!userId) return;
   localStorage.setItem(couponSeenStorageKey(userId), new Date().toISOString());
   state.unreadCouponCount = 0;
+}
+
+function markSpecialCardsSeen(userId) {
+  if (!userId) return;
+  localStorage.setItem(specialCardSeenStorageKey(userId), new Date().toISOString());
+  state.unreadSpecialCardCount = 0;
 }
 
 function markAdminMailboxSeen() {
@@ -703,6 +729,7 @@ async function loadMyData() {
 
   const user = await ensureUserProfile(current.user);
   const grantedCouponCount = await ensureLifecycleCoupons();
+  const grantedSpecialCardCount = await ensureSpecialCards();
   await cleanupUserCoupons(user.id);
   const { data: profile } = await supabase
     .from("app_profiles")
@@ -710,11 +737,12 @@ async function loadMyData() {
     .eq("auth_user_id", current.user.id)
     .maybeSingle();
 
-  const [visits, listens, points, coupons, horrors, relics, purchasePermissions, newsPosts, newsReads] = await Promise.all([
+  const [visits, listens, points, coupons, specialCards, horrors, relics, purchasePermissions, newsPosts, newsReads] = await Promise.all([
     supabase.from("visits").select("*").eq("user_id", user.id).order("visited_at", { ascending: false }),
     supabase.from("sound_horror_listens").select("*").eq("user_id", user.id).order("listened_at", { ascending: false }),
     supabase.from("point_events").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
     supabase.from("user_coupons").select("*, coupons(*)").eq("user_id", user.id).eq("status", "available").order("issued_at", { ascending: false }),
+    optionalQuery(supabase.from("special_card_entries").select("*, special_cards(*)").eq("user_id", user.id).order("created_at", { ascending: false })),
     supabase.from("sound_horrors").select("*").eq("is_active", true).order("title"),
     supabase.from("relics").select("*").eq("is_active", true).order("name"),
     optionalQuery(supabase.from("user_purchase_permissions").select("*").eq("user_id", user.id).eq("is_active", true)),
@@ -722,7 +750,7 @@ async function loadMyData() {
     optionalQuery(supabase.from("news_reads").select("news_post_id").eq("user_id", user.id))
   ]);
 
-  for (const result of [visits, listens, points, coupons, horrors, relics, purchasePermissions, newsPosts, newsReads]) {
+  for (const result of [visits, listens, points, coupons, specialCards, horrors, relics, purchasePermissions, newsPosts, newsReads]) {
     if (result.error) throw result.error;
   }
 
@@ -738,13 +766,15 @@ async function loadMyData() {
     listens: listens.data || [],
     pointEvents: points.data || [],
     coupons: coupons.data || [],
+    specialCards: specialCards.data || [],
     soundHorrors: currentSoundHorrors(horrors.data || []),
     relics: relics.data || [],
     purchasePermissions: purchasePermissions.data || [],
     newsPosts: mergedNewsPosts,
     newsReads: newsReads.data || [],
     unreadNewsCount,
-    unreadCouponCount: unreadCouponCount(coupons.data || [], user.id, grantedCouponCount)
+    unreadCouponCount: unreadCouponCount(coupons.data || [], user.id, grantedCouponCount),
+    unreadSpecialCardCount: unreadSpecialCardCount(specialCards.data || [], user.id, grantedSpecialCardCount)
   };
   myDataCache = { authUserId: current.user.id, at: Date.now(), data };
   return data;
@@ -753,6 +783,7 @@ async function loadMyData() {
 function applyUnreadCounts(data) {
   state.unreadNewsCount = data?.unreadNewsCount || 0;
   state.unreadCouponCount = data?.unreadCouponCount || 0;
+  state.unreadSpecialCardCount = data?.unreadSpecialCardCount || 0;
 }
 
 async function loadAdminData(userId = null, options = {}) {
@@ -2172,8 +2203,8 @@ function layout(content, admin = false) {
       <button class="brand" data-link="${admin ? "/admin/dashboard" : "/member-card"}"><img src="assets/brand/joujou_logo_white.png" alt="" aria-hidden="true" />cafeジュジュ</button>
       <nav>
         ${admin
-          ? `<button data-link="/admin/dashboard">管理</button><button data-link="/admin/users">登録者</button><button data-link="/admin/visits">履歴</button><button data-link="/admin/points">特別ポイント</button><button data-link="/admin/qr">QR表示</button><button data-link="/admin/coupons">クーポン</button><button data-link="/admin/calendar">カレンダー</button><button data-link="/admin/mailbox">メールボックス${state.adminUnreadFeedbackCount ? `<span class="news-badge">${state.adminUnreadFeedbackCount}</span>` : ""}</button><button data-link="/admin/news">NEWS</button>`
-          : `<button data-link="/member-card">会員証</button><button data-link="/coupons">クーポン${state.unreadCouponCount ? `<span class="news-badge">${state.unreadCouponCount}</span>` : ""}</button><button data-link="/special-cards">特別カード</button><button class="news-nav-button" data-link="/news">NEWS${state.unreadNewsCount ? `<span class="news-badge">${state.unreadNewsCount}</span>` : ""}</button><button data-link="/contact">コンタクト</button>`}
+          ? `<button data-link="/admin/dashboard">管理</button><button data-link="/admin/users">登録者</button><button data-link="/admin/visits">履歴</button><button data-link="/admin/points">特別ポイント</button><button data-link="/admin/qr">QR表示</button><button data-link="/admin/coupons">クーポン</button><button data-link="/admin/special-cards">特別カード</button><button data-link="/admin/calendar">カレンダー</button><button data-link="/admin/mailbox">メールボックス${state.adminUnreadFeedbackCount ? `<span class="news-badge">${state.adminUnreadFeedbackCount}</span>` : ""}</button><button data-link="/admin/news">NEWS</button>`
+          : `<button data-link="/member-card">会員証</button><button data-link="/coupons">クーポン${state.unreadCouponCount ? `<span class="news-badge">${state.unreadCouponCount}</span>` : ""}</button><button data-link="/special-cards">特別カード${state.unreadSpecialCardCount ? `<span class="news-badge">${state.unreadSpecialCardCount}</span>` : ""}</button><button class="news-nav-button" data-link="/news">NEWS${state.unreadNewsCount ? `<span class="news-badge">${state.unreadNewsCount}</span>` : ""}</button><button data-link="/contact">コンタクト</button>`}
         <button data-action="logout">ログアウト</button>
       </nav>
     </header>
@@ -2575,10 +2606,45 @@ function viewContact() {
   `);
 }
 
-function viewSpecialCards() {
+function specialCardMeta(entry) {
+  return entry.special_cards || entry;
+}
+
+function specialCardFace(card, face) {
+  const image = face === "front" ? card.front_image_url : card.back_image_url;
+  const alt = `${card.title || "特別カード"} ${face === "front" ? "表" : "裏"}`;
+  return html`
+    <div class="special-card-face ${face}">
+      ${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(alt)}" />` : `<div class="special-card-placeholder">${escapeHtml(card.title || "特別カード")}</div>`}
+      ${face === "back" && card.external_url ? `<a class="special-card-account" href="${escapeHtml(card.external_url)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(card.external_label || "@kareranituite")} を開く" data-no-flip>${escapeHtml(card.external_label || "@kareranituite")}</a>` : ""}
+    </div>
+  `;
+}
+
+function specialCardItem(entry, index = 0) {
+  const card = specialCardMeta(entry);
+  return html`
+    <article class="special-card-shell ${state.flippedSpecialCard === (entry.id || card.id) ? "is-flipped" : ""}" data-action="flip-special-card" data-special-card-id="${escapeHtml(entry.id || card.id || String(index))}">
+      <div class="special-card-stage">
+        ${specialCardFace(card, "front")}
+        ${specialCardFace(card, "back")}
+      </div>
+    </article>
+  `;
+}
+
+async function viewSpecialCards() {
+  const data = await loadMyData();
+  applyUnreadCounts(data);
+  markSpecialCardsSeen(data.user.id);
+  const cards = data.specialCards || [];
   return layout(html`
     <section class="page-head"><h1>\u7279\u5225\u30ab\u30fc\u30c9</h1></section>
-    <section class="empty-state">\u73fe\u5728\u8868\u793a\u3067\u304d\u308b\u7279\u5225\u30ab\u30fc\u30c9\u306f\u3042\u308a\u307e\u305b\u3093\u3002</section>
+    ${cards.length ? `
+      <section class="special-card-rail" aria-label="\u7372\u5f97\u3057\u305f\u7279\u5225\u30ab\u30fc\u30c9">
+        ${cards.map(specialCardItem).join("")}
+      </section>
+    ` : `<section class="empty-state">\u73fe\u5728\u8868\u793a\u3067\u304d\u308b\u7279\u5225\u30ab\u30fc\u30c9\u306f\u3042\u308a\u307e\u305b\u3093\u3002</section>`}
   `);
 }
 
@@ -3053,6 +3119,69 @@ async function viewAdminCoupons() {
   `, true);
 }
 
+async function loadAdminSpecialCards() {
+  if (isDemoAdmin() || !supabase) {
+    return [{
+      id: "demo-special-card",
+      slug: "sound-horror-5",
+      title: "特別カード",
+      description: "サウンドホラーを5種類体験した会員に付与される特別カードです。",
+      card_type: "sound_horror_milestone",
+      front_image_url: "assets/special-cards/sound-horror-5-front.jpg",
+      back_image_url: "assets/special-cards/sound-horror-5-back.jpg",
+      external_url: "https://x.com/kareranituite?s=11&t=EvQ0wix0a85SHwZX_CVwUQ",
+      external_label: "@kareranituite",
+      unlock_condition_label: "サウンドホラーを5種類聞く",
+      sort_order: 10
+    }];
+  }
+  await loadAdminData(null, { includeUsers: false, includeActivity: false, includeCoupons: false, includePurchasePermissions: false });
+  let result = await supabase
+    .from("special_cards")
+    .select("*")
+    .order("sort_order", { ascending: true })
+    .order("created_at", { ascending: true });
+  if (result.error && isMissingDbObject(result.error)) {
+    result = await supabase
+      .from("special_cards")
+      .select("*")
+      .order("created_at", { ascending: true });
+  }
+  const { data, error } = result;
+  if (error) throw error;
+  return data || [];
+}
+
+function adminSpecialCardItem(card) {
+  const open = state.adminSpecialCardOpen === card.id;
+  return html`
+    <article class="admin-special-card">
+      <div class="admin-special-card-preview">
+        ${card.front_image_url ? `<img src="${escapeHtml(card.front_image_url)}" alt="${escapeHtml(card.title || "特別カード")} 表" />` : ""}
+        ${card.back_image_url ? `<img src="${escapeHtml(card.back_image_url)}" alt="${escapeHtml(card.title || "特別カード")} 裏" />` : ""}
+      </div>
+      <div class="admin-special-card-body">
+        <strong>${escapeHtml(card.title || "特別カード")}</strong>
+        <span>${escapeHtml(card.description || "")}</span>
+        <small>${escapeHtml(card.card_type || "-")}</small>
+        <button type="button" data-action="toggle-admin-special-card" data-special-card-id="${escapeHtml(card.id)}">表示</button>
+        ${open ? `<p class="notice">付与条件: ${escapeHtml(card.unlock_condition_label || "未設定")}</p>` : ""}
+      </div>
+    </article>
+  `;
+}
+
+async function viewAdminSpecialCards() {
+  const cards = await loadAdminSpecialCards();
+  return layout(html`
+    ${adminModeBanner()}
+    <section class="page-head"><h1>特別カード</h1><p>実装済みの特別カードと付与条件を確認します。</p></section>
+    <section class="admin-special-card-grid">
+      ${cards.length ? cards.map(adminSpecialCardItem).join("") : `<p class="empty">実装済みの特別カードはありません。</p>`}
+    </section>
+  `, true);
+}
+
 function calendarAdminForm(calendarImage = "") {
   return html`
     <form id="calendar" class="grid-form admin-form calendar-admin-form" data-form="calendar-image">
@@ -3107,7 +3236,7 @@ async function render() {
     else if (path.startsWith("/qr/special/")) paintShell(await viewQrSpecial());
     else if (path.startsWith("/qr/coupon/")) paintShell(await viewQrCoupon());
     else if (path === "/settings") paintShell(viewSettings());
-    else if (path === "/special-cards") paintShell(viewSpecialCards());
+    else if (path === "/special-cards") paintShell(await viewSpecialCards());
     else if (path === "/admin" || path === "/admin/dashboard") paintShell(await viewAdminDashboard());
     else if (path === "/admin/users") paintShell(await viewAdminUsers());
     else if (path.startsWith("/admin/users/")) paintShell(await viewAdminUserDetail());
@@ -3115,6 +3244,7 @@ async function render() {
     else if (path === "/admin/points") paintShell(await viewAdminPoints());
     else if (path === "/admin/qr") paintShell(await viewAdminQr());
     else if (path === "/admin/coupons") paintShell(await viewAdminCoupons());
+    else if (path === "/admin/special-cards") paintShell(await viewAdminSpecialCards());
     else if (path === "/admin/calendar") paintShell(await viewAdminCalendar());
     else if (path === "/admin/mailbox") paintShell(await viewAdminMailbox());
     else if (path === "/admin/news") paintShell(await viewAdminNews());
@@ -3342,6 +3472,11 @@ document.addEventListener("click", (event) => {
     state = { ...state, analyticsMode: action.dataset.mode || "gender" };
     render();
   }
+  if (action.dataset.action === "toggle-admin-special-card") {
+    const id = action.dataset.specialCardId || "";
+    state = { ...state, adminSpecialCardOpen: state.adminSpecialCardOpen === id ? "" : id };
+    render();
+  }
   if (action.dataset.action === "close-icon-editor") {
     if (event.target.closest(".icon-editor-modal") && !event.target.closest("button")) return;
     iconDrag = null;
@@ -3354,6 +3489,12 @@ document.addEventListener("click", (event) => {
   if (action.dataset.action === "flip-card") {
     if (event.target.closest("[data-no-flip], .avatar, .favorite-relic-badge, .profile-controls, .username-button")) return;
     action.classList.toggle("is-flipped");
+  }
+  if (action.dataset.action === "flip-special-card") {
+    if (event.target.closest("[data-no-flip]")) return;
+    const id = action.dataset.specialCardId || "";
+    state = { ...state, flippedSpecialCard: state.flippedSpecialCard === id ? "" : id };
+    render();
   }
   if (action.dataset.action === "record-visit") recordVisit(action.dataset.type);
   if (action.dataset.action === "record-sound") recordSoundHorror(action.dataset.id);
