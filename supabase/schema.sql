@@ -1029,7 +1029,7 @@ declare
   completed_sound_horrors integer;
   inserted_count integer := 0;
   grant_count integer := 0;
-  ghost_release_at timestamptz := timestamptz '2026-07-24 11:00:00+09';
+  ghost_release_at timestamptz := timestamptz '2026-07-25 11:00:00+09';
 begin
   if auth.uid() is null then
     raise exception 'ログインが必要です。';
@@ -1125,10 +1125,10 @@ begin
     null,
     'https://webar.styly.cc/v2/ar_contents/joujou_ghost',
     'ARを起動',
-    '2026/7/24 11:00以降のログインで獲得',
+    '2026/7/25 11:00以降のログインで獲得',
     jsonb_build_object(
       'interaction', 'ghost_ar',
-      'public_release_at', '2026-07-24T11:00:00+09:00',
+      'public_release_at', '2026-07-25T11:00:00+09:00',
       'debug_member_numbers', jsonb_build_array('JUJU-000001', 'JUJU-000002', 'JUJU-000005'),
       'version', 3
     ),
@@ -1723,10 +1723,10 @@ values (
   null,
   'https://webar.styly.cc/v2/ar_contents/joujou_ghost',
   'ARを起動',
-  '2026/7/24 11:00以降のログインで獲得',
+  '2026/7/25 11:00以降のログインで獲得',
   jsonb_build_object(
     'interaction', 'ghost_ar',
-    'public_release_at', '2026-07-24T11:00:00+09:00',
+    'public_release_at', '2026-07-25T11:00:00+09:00',
     'debug_member_numbers', jsonb_build_array('JUJU-000001', 'JUJU-000002', 'JUJU-000005'),
     'version', 3
   ),
