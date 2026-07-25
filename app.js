@@ -38,13 +38,43 @@ const welcomeCoupon = {
   description: "\u30b5\u30a6\u30f3\u30c9\u30db\u30e9\u30fc\u4e00\u56de\u7121\u6599\uff08\uffe51,000\u4f5c\u54c1\u306e\u307f\u5bfe\u8c61\uff09"
 };
 const relicCatalog = [
-  { id: "local-byoudon-mamori", name: "\u75c5\u5451\u5b88\u308a", image: "assets/relics/byoudon-mamori.jpg" },
+  {
+    id: "local-byoudon-mamori",
+    name: "\u75c5\u5451\u5b88\u308a",
+    image: "assets/relics/byoudon-mamori.jpg",
+    favoriteImage: "assets/relics/favorites/byoudon-mamori.jpg"
+  },
   { id: "local-sange-box", name: "\u3055\u3093\u3052\u306e\u7bb1", image: "assets/relics/sange-box.jpg" },
-  { id: "local-ganenbutsu", name: "\u5ca9\u5869\u4ecf", image: "assets/relics/ganenbutsu.jpg" },
-  { id: "local-black-phone", name: "\u907a\u68c4\u3055\u308c\u305f\u9ed2\u96fb\u8a71", image: "assets/relics/black-phone.jpg" },
-  { id: "local-mother-puppet", name: "\u304a\u6bcd\u3055\u3093\u5f79\u306e\u64cd\u308a\u4eba\u5f62", image: "assets/relics/mother-puppet.jpg" },
-  { id: "local-horseshoe", name: "\u5751\u5185\u99ac\u306e\u8e44\u9244", image: "assets/relics/horseshoe.jpg" },
-  { id: "local-ma-kun", name: "\u8179\u8a71\u8853\u4eba\u5f62\u307e\u3041\u304f\u3093", image: "assets/relics/ma-kun.jpg" }
+  {
+    id: "local-ganenbutsu",
+    name: "\u5ca9\u5869\u4ecf",
+    image: "assets/relics/ganenbutsu.jpg",
+    favoriteImage: "assets/relics/favorites/ganenbutsu.jpg"
+  },
+  {
+    id: "local-black-phone",
+    name: "\u907a\u68c4\u3055\u308c\u305f\u9ed2\u96fb\u8a71",
+    image: "assets/relics/black-phone.jpg",
+    favoriteImage: "assets/relics/favorites/black-phone.jpg"
+  },
+  {
+    id: "local-mother-puppet",
+    name: "\u304a\u6bcd\u3055\u3093\u5f79\u306e\u64cd\u308a\u4eba\u5f62",
+    image: "assets/relics/mother-puppet.jpg",
+    favoriteImage: "assets/relics/favorites/mother-puppet.jpg"
+  },
+  {
+    id: "local-horseshoe",
+    name: "\u5751\u5185\u99ac\u306e\u8e44\u9244",
+    image: "assets/relics/horseshoe.jpg",
+    favoriteImage: "assets/relics/favorites/horseshoe.jpg"
+  },
+  {
+    id: "local-ma-kun",
+    name: "\u8179\u8a71\u8853\u4eba\u5f62\u307e\u3041\u304f\u3093",
+    image: "assets/relics/ma-kun.jpg",
+    favoriteImage: "assets/relics/favorites/ma-kun.jpg"
+  }
 ];
 const relicImageByHorrorTitle = Object.fromEntries([
   ...relicCatalog.map((relic) => [relic.name, relic.image]),
@@ -386,7 +416,9 @@ function userIcon(user) {
 function relicOptions(relics = []) {
   return relicCatalog.map((catalogRelic) => {
     const dbRelic = relics.find((relic) => relic.name === catalogRelic.name);
-    return dbRelic ? { ...dbRelic, image: catalogRelic.image } : catalogRelic;
+    const favoriteImage = catalogRelic.favoriteImage || catalogRelic.image;
+    const localRelic = { ...catalogRelic, image: favoriteImage, stampImage: catalogRelic.image };
+    return dbRelic ? { ...catalogRelic, ...dbRelic, image: favoriteImage, stampImage: catalogRelic.image } : localRelic;
   });
 }
 
