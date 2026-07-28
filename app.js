@@ -188,6 +188,7 @@ const isConfigured = () => Boolean(cfg().url && cfg().anon);
 const schemaSetupMessage =
   "Supabaseのデータベース初期設定が未完了です。AuthenticationのUsersとは別に、SQL Editorで public.users などのアプリ用テーブルを作成してください。";
 const yenDate = (value) => (value ? new Date(value).toLocaleDateString("ja-JP") : "-");
+const yenDateTime = (value) => (value ? new Date(value).toLocaleString("ja-JP", { dateStyle: "short", timeStyle: "short" }) : "-");
 const monthDayDate = (value) => {
   if (!value) return "-";
   const date = new Date(value);
@@ -548,6 +549,30 @@ function mergeNewsPosts(remotePosts = []) {
   return [...map.values()].sort((a, b) => new Date(b.published_at || b.created_at || 0) - new Date(a.published_at || a.created_at || 0));
 }
 
+function isNewsVisible(post, now = new Date()) {
+  if (post?.is_published === false) return false;
+  const publishedAt = new Date(post?.published_at || post?.created_at || 0);
+  return !Number.isNaN(publishedAt.getTime()) && publishedAt <= now;
+}
+
+function visibleNewsPosts(posts = []) {
+  return posts.filter((post) => isNewsVisible(post));
+}
+
+function dateTimeLocalValue(value) {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return "";
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+
+function publishedAtFromForm(form) {
+  const value = String(form.get("published_at") || "").trim();
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) throw new Error("公開日時を正しく入力してください。");
+  return date.toISOString();
+}
+
 function purchasePermissionFor(user, rank, permissions = []) {
   const manual = permissions.find((permission) => permission.user_id === user.id && permission.is_active !== false);
   return {
@@ -780,7 +805,7 @@ async function loadMyData() {
     supabase.from("sound_horrors").select("*").eq("is_active", true).order("title"),
     supabase.from("relics").select("*").eq("is_active", true).order("name"),
     optionalQuery(supabase.from("user_purchase_permissions").select("*").eq("user_id", user.id).eq("is_active", true)),
-    optionalQuery(supabase.from("news_posts").select("*").eq("is_published", true).order("published_at", { ascending: false }).limit(50)),
+    optionalQuery(supabase.from("news_posts").select("*").eq("is_published", true).lte("published_at", new Date().toISOString()).order("published_at", { ascending: false }).limit(50)),
     optionalQuery(supabase.from("news_reads").select("news_post_id").eq("user_id", user.id))
   ]);
 
@@ -790,7 +815,7 @@ async function loadMyData() {
 
   const readIds = new Set((newsReads.data || []).map((read) => read.news_post_id));
   const localReadIds = storedReadNewsIds(user.id);
-  const mergedNewsPosts = mergeNewsPosts(newsPosts.data || []);
+  const mergedNewsPosts = visibleNewsPosts(mergeNewsPosts(newsPosts.data || []));
   const unreadNewsCount = mergedNewsPosts.filter((post) => !readIds.has(post.id) && !localReadIds.has(post.id)).length;
 
   const data = {
@@ -2062,18 +2087,21 @@ async function createNewsPost(formElement, submitter = null) {
   const imageUrl = imageFileUrl || String(form.get("image_url") || "").trim();
   const titleInput = String(form.get("title") || "").trim();
   const title = titleInput || (mode === "url" ? sourceLabel(url) : "NEWS");
-  const publishedAt = new Date().toISOString();
-  const insertPayload = {
-    title,
-    body,
-    image_url: imageUrl || null,
-    external_url: url || null,
-    source_label: sourceLabel(url),
-    is_published: true,
-    published_at: publishedAt
-  };
   try {
     state = { busy: true, message: "", error: "" };
+    const createdAt = new Date().toISOString();
+    const publishedAt = publishedAtFromForm(form);
+    const isScheduled = new Date(publishedAt) > new Date();
+    const successMessage = isScheduled ? "NEWSを予約しました。" : "NEWSを公開しました。";
+    const insertPayload = {
+      title,
+      body,
+      image_url: imageUrl || null,
+      external_url: url || null,
+      source_label: sourceLabel(url),
+      is_published: true,
+      published_at: publishedAt
+    };
     if (mode === "url" && !url) {
       throw new Error("URLを入力してください。");
     }
@@ -2085,7 +2113,7 @@ async function createNewsPost(formElement, submitter = null) {
         id: `local-news-${Date.now()}`,
         ...insertPayload,
         is_published: true,
-        created_at: publishedAt,
+        created_at: createdAt,
         published_at: publishedAt
       };
       saveLocalNewsPost(post);
@@ -2097,7 +2125,8 @@ async function createNewsPost(formElement, submitter = null) {
           p_body: body || null,
           p_image_url: imageUrl || null,
           p_external_url: url || null,
-          p_source_label: sourceLabel(url)
+          p_source_label: sourceLabel(url),
+          p_published_at: publishedAt
         });
         if (error) {
           const fallback = await supabase.from("news_posts").insert(insertPayload);
@@ -2112,7 +2141,7 @@ async function createNewsPost(formElement, submitter = null) {
           }
         }
       }
-      state = { busy: false, message: "NEWSを公開しました。", error: "" };
+      state = { busy: false, message: successMessage, error: "" };
       render();
       return;
     }
@@ -2123,16 +2152,16 @@ async function createNewsPost(formElement, submitter = null) {
       id: `local-news-${Date.now()}`,
       ...insertPayload,
       is_published: true,
-      created_at: publishedAt,
+      created_at: createdAt,
       published_at: publishedAt
     });
-    state = { busy: false, message: "NEWSを公開しました。", error: "" };
+    state = { busy: false, message: successMessage, error: "" };
   } catch (error) {
     state = { busy: false, message: "", error: appErrorMessage(error) };
   } finally {
     if (submitter) {
       submitter.disabled = false;
-      submitter.textContent = submitterText || "NEWSを公開";
+      submitter.textContent = submitterText || "NEWSを公開/予約";
     }
   }
   render();
@@ -2190,15 +2219,17 @@ async function updateNewsPost(event) {
   const imageFileUrl = await readImageFileAsDataUrl(form.get("image_file"));
   const imageUrl = imageFileUrl || String(form.get("image_url") || "").trim();
   const url = normalizeExternalUrl(form.get("url"));
-  const patch = {
-    title,
-    body: body || null,
-    image_url: imageUrl || null,
-    external_url: url || null,
-    source_label: sourceLabel(url),
-    updated_at: new Date().toISOString()
-  };
   try {
+    const publishedAt = publishedAtFromForm(form);
+    const patch = {
+      title,
+      body: body || null,
+      image_url: imageUrl || null,
+      external_url: url || null,
+      source_label: sourceLabel(url),
+      published_at: publishedAt,
+      updated_at: new Date().toISOString()
+    };
     if (!title) throw new Error("タイトルを入力してください。");
     const localPosts = localNewsPosts();
     const localIndex = localPosts.findIndex((post) => post.id === newsId);
@@ -2215,7 +2246,8 @@ async function updateNewsPost(event) {
         p_body: body || null,
         p_image_url: imageUrl || null,
         p_external_url: url || null,
-        p_source_label: sourceLabel(url)
+        p_source_label: sourceLabel(url),
+        p_published_at: publishedAt
       });
       if (error) throw error;
     } else if (!String(newsId).startsWith("local-news-")) {
@@ -2741,6 +2773,8 @@ async function markNewsRead(userId, posts = []) {
 
 function newsPostCard(post, admin = false) {
   const date = post.published_at ? yenDate(post.published_at) : yenDate(post.created_at);
+  const dateTime = post.published_at ? yenDateTime(post.published_at) : yenDateTime(post.created_at);
+  const isScheduled = admin && post.published_at && new Date(post.published_at) > new Date();
   const title = post.title || "NEWS";
   const imageUrl = post.image_url || "";
   const externalUrl = post.external_url || "";
@@ -2751,6 +2785,7 @@ function newsPostCard(post, admin = false) {
   const preview = linkPreview(post);
   const content = [
     `<div class="news-author"><span class="news-avatar">\u546a</span><div><strong>cafe\u30b8\u30e5\u30b8\u30e5</strong><small>${escapeHtml(source)} / ${escapeHtml(date)}</small></div></div>`,
+    isScheduled ? `<p class="form-note news-schedule-note">予約中: ${escapeHtml(dateTime)} 公開</p>` : "",
     `<h2>${escapeHtml(title)}</h2>`,
     body,
     media,
@@ -2770,6 +2805,7 @@ function newsPostCard(post, admin = false) {
               <label>\u753b\u50cfURL<input name="image_url" value="${escapeHtml(imageUrl)}" /></label>
               <label>\u7aef\u672b\u304b\u3089\u753b\u50cf\u9078\u629e<input name="image_file" type="file" accept="image/*" /></label>
               <label>SNS/\u5916\u90e8URL<input name="url" value="${escapeHtml(externalUrl)}" /></label>
+              <label>\u516c\u958b\u65e5\u6642<input name="published_at" type="datetime-local" value="${escapeHtml(dateTimeLocalValue(post.published_at || post.created_at))}" /></label>
               <button class="primary" type="submit">\u66f4\u65b0</button>
             </form>
           </details>
@@ -2797,6 +2833,7 @@ async function viewNews() {
 async function viewAdminNews() {
   const data = await loadAdminData(null, { includeUsers: false, includeActivity: false, includeCoupons: false, includePurchasePermissions: false, includeNews: true });
   const posts = data.newsPosts || [];
+  const defaultPublishedAt = dateTimeLocalValue(new Date());
   return layout(html`
     ${adminModeBanner()}
     <section class="page-head"><h1>NEWS\u7ba1\u7406</h1><p>\u30a4\u30d9\u30f3\u30c8\u544a\u77e5\u3001SNS\u6295\u7a3f\u3001URL\u30ea\u30f3\u30af\u3092\u30e1\u30f3\u30d0\u30fc\u30ba\u30ab\u30fc\u30c9\u306eNEWS\u30bf\u30a4\u30e0\u30e9\u30a4\u30f3\u3078\u8ffd\u52a0\u3057\u307e\u3059\u3002</p></section>
@@ -2809,14 +2846,16 @@ async function viewAdminNews() {
         <label>\u753b\u50cfURL<input name="image_url" placeholder="https://...jpg" /></label>
         <label>\u7aef\u672b\u304b\u3089\u753b\u50cf\u9078\u629e<input name="image_file" type="file" accept="image/*" /></label>
         <label>SNS/\u5916\u90e8URL<input name="url" placeholder="X\u3001Instagram\u3001TikTok\u3001Web\u30da\u30fc\u30b8\u306a\u3069" /></label>
-        <button class="primary" type="button" data-action="publish-news">NEWS\u3092\u516c\u958b</button>
+        <label>\u516c\u958b\u65e5\u6642<input name="published_at" type="datetime-local" value="${escapeHtml(defaultPublishedAt)}" /></label>
+        <button class="primary" type="button" data-action="publish-news">NEWS\u3092\u516c\u958b/\u4e88\u7d04</button>
       </form>
       <form class="grid-form admin-form news-form news-compose-card" data-form="news-url-create">
         <input type="hidden" name="mode" value="url" />
         <h2>URL\u3060\u3051\u3067\u6295\u7a3f</h2>
         <label>URL<input name="url" inputmode="url" placeholder="https://x.com/... \u306a\u3069" required /></label>
+        <label>\u516c\u958b\u65e5\u6642<input name="published_at" type="datetime-local" value="${escapeHtml(defaultPublishedAt)}" /></label>
         <p class="form-note">SNS\u3084Web\u30da\u30fc\u30b8\u306eURL\u3060\u3051\u3092NEWS\u306b\u8ffd\u52a0\u3057\u307e\u3059\u3002\u8a18\u4e8b\u3092\u30bf\u30c3\u30d7\u3059\u308b\u3068\u5143\u30da\u30fc\u30b8\u3078\u79fb\u52d5\u3057\u307e\u3059\u3002</p>
-        <button class="primary" type="button" data-action="publish-news">URL\u3092NEWS\u306b\u8ffd\u52a0</button>
+        <button class="primary" type="button" data-action="publish-news">URL\u3092NEWS\u306b\u8ffd\u52a0/\u4e88\u7d04</button>
       </form>
     </section>
     <section class="news-timeline admin-news-timeline">

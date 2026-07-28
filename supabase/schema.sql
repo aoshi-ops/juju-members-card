@@ -234,6 +234,9 @@ create table if not exists public.news_posts (
   updated_at timestamptz not null default now()
 );
 
+create index if not exists news_posts_public_schedule_idx
+on public.news_posts (is_published, published_at desc);
+
 create table if not exists public.news_reads (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.users(id) on delete cascade,
@@ -275,7 +278,8 @@ create or replace function public.create_staff_news_post(
   p_body text default null,
   p_image_url text default null,
   p_external_url text default null,
-  p_source_label text default null
+  p_source_label text default null,
+  p_published_at timestamptz default null
 )
 returns uuid
 language plpgsql
@@ -309,7 +313,7 @@ begin
     nullif(trim(coalesce(p_external_url, '')), ''),
     nullif(trim(coalesce(p_source_label, '')), ''),
     true,
-    now()
+    coalesce(p_published_at, now())
   )
   returning id into new_id;
 
@@ -325,7 +329,8 @@ create or replace function public.update_staff_news_post(
   p_body text default null,
   p_image_url text default null,
   p_external_url text default null,
-  p_source_label text default null
+  p_source_label text default null,
+  p_published_at timestamptz default null
 )
 returns void
 language plpgsql
@@ -348,6 +353,7 @@ begin
     image_url = nullif(trim(coalesce(p_image_url, '')), ''),
     external_url = nullif(trim(coalesce(p_external_url, '')), ''),
     source_label = nullif(trim(coalesce(p_source_label, '')), ''),
+    published_at = coalesce(p_published_at, published_at),
     updated_at = now()
   where id = p_news_id;
 end;
@@ -467,8 +473,8 @@ to authenticated;
 
 grant select, insert on public.news_posts to anon;
 grant select on public.app_settings to anon, authenticated;
-grant execute on function public.create_staff_news_post(text, text, text, text, text, text, text) to anon, authenticated;
-grant execute on function public.update_staff_news_post(text, text, uuid, text, text, text, text, text) to anon, authenticated;
+grant execute on function public.create_staff_news_post(text, text, text, text, text, text, text, timestamptz) to anon, authenticated;
+grant execute on function public.update_staff_news_post(text, text, uuid, text, text, text, text, text, timestamptz) to anon, authenticated;
 grant execute on function public.delete_staff_news_post(text, text, uuid) to anon, authenticated;
 grant execute on function public.staff_grant_coupon_to_user(text, text, uuid, uuid) to anon, authenticated;
 grant execute on function public.staff_update_app_setting(text, text, text, text) to anon, authenticated;
@@ -1518,7 +1524,7 @@ for all using (public.is_staff()) with check (public.is_staff());
 
 drop policy if exists "news_posts_public_published_or_staff" on public.news_posts;
 create policy "news_posts_public_published_or_staff" on public.news_posts
-for select using (is_published = true or public.is_staff());
+for select using ((is_published = true and published_at <= now()) or public.is_staff());
 
 drop policy if exists "news_posts_staff_write" on public.news_posts;
 create policy "news_posts_staff_write" on public.news_posts
