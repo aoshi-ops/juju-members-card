@@ -566,7 +566,52 @@ function dateTimeLocalValue(value) {
   return local.toISOString().slice(0, 16);
 }
 
+function selectOptions(values, selectedValue, formatter = (value) => value) {
+  return values
+    .map((value) => `<option value="${value}" ${Number(value) === Number(selectedValue) ? "selected" : ""}>${escapeHtml(formatter(value))}</option>`)
+    .join("");
+}
+
+function scheduleDateTimeFields(value) {
+  const date = value ? new Date(value) : new Date();
+  const base = Number.isNaN(date.getTime()) ? new Date() : date;
+  const currentYear = new Date().getFullYear();
+  const selectedYear = base.getFullYear();
+  const years = Array.from(new Set([selectedYear, ...Array.from({ length: 4 }, (_, index) => currentYear + index)])).sort();
+  const months = Array.from({ length: 12 }, (_, index) => index + 1);
+  const days = Array.from({ length: 31 }, (_, index) => index + 1);
+  const hours = Array.from({ length: 24 }, (_, index) => index);
+  const minutes = Array.from({ length: 60 }, (_, index) => index);
+  return html`
+    <span class="schedule-selects">
+      <select name="published_year" aria-label="公開年">${selectOptions(years, selectedYear, (year) => `${year}年`)}</select>
+      <select name="published_month" aria-label="公開月">${selectOptions(months, base.getMonth() + 1, (month) => `${month}月`)}</select>
+      <select name="published_day" aria-label="公開日">${selectOptions(days, base.getDate(), (day) => `${day}日`)}</select>
+      <select name="published_hour" aria-label="公開時">${selectOptions(hours, base.getHours(), (hour) => `${String(hour).padStart(2, "0")}時`)}</select>
+      <select name="published_minute" aria-label="公開分">${selectOptions(minutes, base.getMinutes(), (minute) => `${String(minute).padStart(2, "0")}分`)}</select>
+    </span>
+  `;
+}
+
 function publishedAtFromForm(form) {
+  const year = Number(form.get("published_year"));
+  const month = Number(form.get("published_month"));
+  const day = Number(form.get("published_day"));
+  const hour = Number(form.get("published_hour"));
+  const minute = Number(form.get("published_minute"));
+  if ([year, month, day, hour, minute].every(Number.isFinite)) {
+    const date = new Date(year, month - 1, day, hour, minute, 0, 0);
+    if (
+      date.getFullYear() !== year ||
+      date.getMonth() !== month - 1 ||
+      date.getDate() !== day ||
+      date.getHours() !== hour ||
+      date.getMinutes() !== minute
+    ) {
+      throw new Error("公開日時を正しく入力してください。");
+    }
+    return date.toISOString();
+  }
   const value = String(form.get("published_at") || "").trim();
   const date = value ? new Date(value) : new Date();
   if (Number.isNaN(date.getTime())) throw new Error("公開日時を正しく入力してください。");
@@ -2805,7 +2850,7 @@ function newsPostCard(post, admin = false) {
               <label>\u753b\u50cfURL<input name="image_url" value="${escapeHtml(imageUrl)}" /></label>
               <label>\u7aef\u672b\u304b\u3089\u753b\u50cf\u9078\u629e<input name="image_file" type="file" accept="image/*" /></label>
               <label>SNS/\u5916\u90e8URL<input name="url" value="${escapeHtml(externalUrl)}" /></label>
-              <label>\u516c\u958b\u65e5\u6642<input name="published_at" type="datetime-local" value="${escapeHtml(dateTimeLocalValue(post.published_at || post.created_at))}" /></label>
+              <label class="schedule-field">\u516c\u958b\u65e5\u6642${scheduleDateTimeFields(post.published_at || post.created_at)}</label>
               <button class="primary" type="submit">\u66f4\u65b0</button>
             </form>
           </details>
@@ -2846,14 +2891,14 @@ async function viewAdminNews() {
         <label>\u753b\u50cfURL<input name="image_url" placeholder="https://...jpg" /></label>
         <label>\u7aef\u672b\u304b\u3089\u753b\u50cf\u9078\u629e<input name="image_file" type="file" accept="image/*" /></label>
         <label>SNS/\u5916\u90e8URL<input name="url" placeholder="X\u3001Instagram\u3001TikTok\u3001Web\u30da\u30fc\u30b8\u306a\u3069" /></label>
-        <label>\u516c\u958b\u65e5\u6642<input name="published_at" type="datetime-local" value="${escapeHtml(defaultPublishedAt)}" /></label>
+        <label class="schedule-field">\u516c\u958b\u65e5\u6642${scheduleDateTimeFields(defaultPublishedAt)}</label>
         <button class="primary" type="button" data-action="publish-news">NEWS\u3092\u516c\u958b/\u4e88\u7d04</button>
       </form>
       <form class="grid-form admin-form news-form news-compose-card" data-form="news-url-create">
         <input type="hidden" name="mode" value="url" />
         <h2>URL\u3060\u3051\u3067\u6295\u7a3f</h2>
         <label>URL<input name="url" inputmode="url" placeholder="https://x.com/... \u306a\u3069" required /></label>
-        <label>\u516c\u958b\u65e5\u6642<input name="published_at" type="datetime-local" value="${escapeHtml(defaultPublishedAt)}" /></label>
+        <label class="schedule-field">\u516c\u958b\u65e5\u6642${scheduleDateTimeFields(defaultPublishedAt)}</label>
         <p class="form-note">SNS\u3084Web\u30da\u30fc\u30b8\u306eURL\u3060\u3051\u3092NEWS\u306b\u8ffd\u52a0\u3057\u307e\u3059\u3002\u8a18\u4e8b\u3092\u30bf\u30c3\u30d7\u3059\u308b\u3068\u5143\u30da\u30fc\u30b8\u3078\u79fb\u52d5\u3057\u307e\u3059\u3002</p>
         <button class="primary" type="button" data-action="publish-news">URL\u3092NEWS\u306b\u8ffd\u52a0/\u4e88\u7d04</button>
       </form>
