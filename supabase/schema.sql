@@ -197,9 +197,13 @@ create table if not exists public.special_card_entries (
   user_id uuid not null references public.users(id) on delete cascade,
   point_value numeric(6,1) default 0 check (point_value % 0.5 = 0),
   stamp_count integer default 0 check (stamp_count >= 0),
+  metadata jsonb not null default '{}'::jsonb,
   memo text,
   created_at timestamptz not null default now()
 );
+
+alter table public.special_card_entries
+add column if not exists metadata jsonb not null default '{}'::jsonb;
 
 delete from public.special_card_entries a
 using public.special_card_entries b
@@ -1032,6 +1036,7 @@ declare
   current_member_number text;
   sound_card_id uuid;
   ghost_card_id uuid;
+  chillas_card_id uuid;
   completed_sound_horrors integer;
   inserted_count integer := 0;
   grant_count integer := 0;
@@ -1169,11 +1174,210 @@ begin
     grant_count := grant_count + inserted_count;
   end if;
 
+  insert into public.special_cards (
+    slug,
+    title,
+    description,
+    card_type,
+    front_image_url,
+    back_image_url,
+    external_url,
+    external_label,
+    unlock_condition_label,
+    metadata,
+    sort_order,
+    is_active
+  )
+  values (
+    'chillas-cafe-debug',
+    'チラズアートコラボCafé 記念カード',
+    'チラズアートコラボCaféのクローズドデバッグ用記念カードです。',
+    'closed_debug_game',
+    'assets/special-cards/chillas-cafe-front.jpg',
+    'assets/special-cards/chillas-cafe-back.jpg',
+    'https://obneao-indy.github.io/-Caf-/',
+    'ゲームスタート',
+    'クローズドデバッグ: JUJU-000001〜JUJU-000005',
+    jsonb_build_object(
+      'interaction', 'chillas_cafe_game',
+      'aspect_ratio', '1200 / 628',
+      'debug_staff_member_numbers', jsonb_build_array('JUJU-000001', 'JUJU-000002', 'JUJU-000003', 'JUJU-000004', 'JUJU-000005'),
+      'staff_signature_storage_key', 'JUJU_CHILLAS_STAFF_SIGNATURE',
+      'version', 1
+    ),
+    30,
+    true
+  )
+  on conflict (slug) where slug is not null do update
+  set title = excluded.title,
+      description = excluded.description,
+      card_type = excluded.card_type,
+      front_image_url = excluded.front_image_url,
+      back_image_url = excluded.back_image_url,
+      external_url = excluded.external_url,
+      external_label = excluded.external_label,
+      unlock_condition_label = excluded.unlock_condition_label,
+      metadata = excluded.metadata,
+      sort_order = excluded.sort_order,
+      is_active = excluded.is_active,
+      updated_at = now();
+
+  select id into chillas_card_id
+  from public.special_cards
+  where slug = 'chillas-cafe-debug'
+  limit 1;
+
+  if upper(coalesce(current_member_number, '')) in ('JUJU-000001', 'JUJU-000002', 'JUJU-000003', 'JUJU-000004', 'JUJU-000005') then
+    insert into public.special_card_entries (special_card_id, user_id, point_value, stamp_count, memo)
+    values (chillas_card_id, current_user_id, 0, 0, 'チラズアートコラボCafé クローズドデバッグ付与')
+    on conflict (user_id, special_card_id) do nothing;
+    get diagnostics inserted_count = row_count;
+    grant_count := grant_count + inserted_count;
+  end if;
+
   return jsonb_build_object(
     'granted', grant_count,
     'completed_sound_horrors', completed_sound_horrors,
     'ghost_release_at', ghost_release_at
   );
+end;
+$$;
+
+create or replace function public.set_chillas_staff_signature(
+  p_signature text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_user_id uuid;
+  chillas_card_id uuid;
+  signature text := nullif(trim(coalesce(p_signature, '')), '');
+begin
+  if auth.uid() is null then
+    raise exception 'ログインが必要です。';
+  end if;
+
+  if signature is null then
+    return;
+  end if;
+
+  select id into current_user_id
+  from public.users
+  where auth_user_id = auth.uid();
+
+  if current_user_id is null then
+    raise exception '会員情報がありません。';
+  end if;
+
+  select id into chillas_card_id
+  from public.special_cards
+  where slug = 'chillas-cafe-debug'
+  limit 1;
+
+  if chillas_card_id is null then
+    return;
+  end if;
+
+  update public.special_card_entries
+  set metadata = jsonb_set(
+        coalesce(metadata, '{}'::jsonb),
+        '{staff_signature}',
+        to_jsonb(left(signature, 48)),
+        true
+      )
+  where user_id = current_user_id
+    and special_card_id = chillas_card_id;
+end;
+$$;
+
+create or replace function public.ensure_chillas_cafe_debug_card()
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  current_user_id uuid;
+  current_member_number text;
+  chillas_card_id uuid;
+  inserted_count integer := 0;
+begin
+  if auth.uid() is null then
+    raise exception 'ログインが必要です。';
+  end if;
+
+  select id, member_number into current_user_id, current_member_number
+  from public.users
+  where auth_user_id = auth.uid();
+
+  if current_user_id is null then
+    raise exception '会員情報がありません。';
+  end if;
+
+  insert into public.special_cards (
+    slug,
+    title,
+    description,
+    card_type,
+    front_image_url,
+    back_image_url,
+    external_url,
+    external_label,
+    unlock_condition_label,
+    metadata,
+    sort_order,
+    is_active
+  )
+  values (
+    'chillas-cafe-debug',
+    'チラズアートコラボCafé 記念カード',
+    'チラズアートコラボCaféのクローズドデバッグ用記念カードです。',
+    'closed_debug_game',
+    'assets/special-cards/chillas-cafe-front.jpg',
+    'assets/special-cards/chillas-cafe-back.jpg',
+    'https://obneao-indy.github.io/-Caf-/',
+    'ゲームスタート',
+    'クローズドデバッグ: JUJU-000001〜JUJU-000005',
+    jsonb_build_object(
+      'interaction', 'chillas_cafe_game',
+      'aspect_ratio', '1200 / 628',
+      'debug_staff_member_numbers', jsonb_build_array('JUJU-000001', 'JUJU-000002', 'JUJU-000003', 'JUJU-000004', 'JUJU-000005'),
+      'staff_signature_storage_key', 'JUJU_CHILLAS_STAFF_SIGNATURE',
+      'version', 1
+    ),
+    30,
+    true
+  )
+  on conflict (slug) where slug is not null do update
+  set title = excluded.title,
+      description = excluded.description,
+      card_type = excluded.card_type,
+      front_image_url = excluded.front_image_url,
+      back_image_url = excluded.back_image_url,
+      external_url = excluded.external_url,
+      external_label = excluded.external_label,
+      unlock_condition_label = excluded.unlock_condition_label,
+      metadata = excluded.metadata,
+      sort_order = excluded.sort_order,
+      is_active = excluded.is_active,
+      updated_at = now();
+
+  select id into chillas_card_id
+  from public.special_cards
+  where slug = 'chillas-cafe-debug'
+  limit 1;
+
+  if upper(coalesce(current_member_number, '')) in ('JUJU-000001', 'JUJU-000002', 'JUJU-000003', 'JUJU-000004', 'JUJU-000005') then
+    insert into public.special_card_entries (special_card_id, user_id, point_value, stamp_count, memo)
+    values (chillas_card_id, current_user_id, 0, 0, 'チラズアートコラボCafé クローズドデバッグ付与')
+    on conflict (user_id, special_card_id) do nothing;
+    get diagnostics inserted_count = row_count;
+  end if;
+
+  return jsonb_build_object('granted', inserted_count);
 end;
 $$;
 
@@ -1370,6 +1574,8 @@ grant execute on function public.record_special_experience(text) to authenticate
 grant execute on function public.ensure_registration_coupon() to authenticated;
 grant execute on function public.ensure_lifecycle_coupons() to authenticated;
 grant execute on function public.ensure_special_cards() to authenticated;
+grant execute on function public.ensure_chillas_cafe_debug_card() to authenticated;
+grant execute on function public.set_chillas_staff_signature(text) to authenticated;
 grant execute on function public.rank_number_for_points(numeric) to authenticated;
 grant execute on function public.claim_coupon(uuid) to authenticated;
 grant execute on function public.use_user_coupon(uuid) to authenticated;
@@ -1571,6 +1777,16 @@ drop policy if exists "app_settings_staff_write" on public.app_settings;
 create policy "app_settings_staff_write" on public.app_settings
 for all using (public.is_staff()) with check (public.is_staff());
 
+insert into public.app_settings (key, value, updated_at)
+values (
+  'chillas_cafe_debug_staff_member_numbers',
+  'JUJU-000001,JUJU-000002,JUJU-000003,JUJU-000004,JUJU-000005',
+  now()
+)
+on conflict (key) do update
+set value = excluded.value,
+    updated_at = now();
+
 insert into public.member_ranks (rank_number, rank_name, min_point, max_point)
 values
   (1, '迷い人', 1, 5),
@@ -1690,6 +1906,54 @@ values (
   'サウンドホラーを5種類聞く',
   jsonb_build_object('required_distinct_sound_horrors', 5, 'version', 1),
   10,
+  true
+)
+on conflict (slug) where slug is not null do update
+set title = excluded.title,
+    description = excluded.description,
+    card_type = excluded.card_type,
+    front_image_url = excluded.front_image_url,
+    back_image_url = excluded.back_image_url,
+    external_url = excluded.external_url,
+    external_label = excluded.external_label,
+    unlock_condition_label = excluded.unlock_condition_label,
+    metadata = excluded.metadata,
+    sort_order = excluded.sort_order,
+    is_active = excluded.is_active,
+    updated_at = now();
+
+insert into public.special_cards (
+  slug,
+  title,
+  description,
+  card_type,
+  front_image_url,
+  back_image_url,
+  external_url,
+  external_label,
+  unlock_condition_label,
+  metadata,
+  sort_order,
+  is_active
+)
+values (
+  'chillas-cafe-debug',
+  'チラズアートコラボCafé 記念カード',
+  'チラズアートコラボCaféのクローズドデバッグ用記念カードです。',
+  'closed_debug_game',
+  'assets/special-cards/chillas-cafe-front.jpg',
+  'assets/special-cards/chillas-cafe-back.jpg',
+  'https://obneao-indy.github.io/-Caf-/',
+  'ゲームスタート',
+  'クローズドデバッグ: JUJU-000001〜JUJU-000005',
+  jsonb_build_object(
+    'interaction', 'chillas_cafe_game',
+    'aspect_ratio', '1200 / 628',
+    'debug_staff_member_numbers', jsonb_build_array('JUJU-000001', 'JUJU-000002', 'JUJU-000003', 'JUJU-000004', 'JUJU-000005'),
+    'staff_signature_storage_key', 'JUJU_CHILLAS_STAFF_SIGNATURE',
+    'version', 1
+  ),
+  30,
   true
 )
 on conflict (slug) where slug is not null do update

@@ -172,6 +172,9 @@ const RESERVATION_URL = "https://tabelog.com/tokyo/A1319/A131903/13311160/";
 const FEEDBACK_LOCAL_STORAGE = "JUJU_LOCAL_FEEDBACK_MESSAGES";
 const ADMIN_MAILBOX_SEEN_STORAGE = "JUJU_ADMIN_MAILBOX_SEEN";
 const GHOST_AR_CARD_SLUG = "gyuhi-ghost-ar-debug";
+const CHILLAS_CAFE_CARD_SLUG = "chillas-cafe-debug";
+const CHILLAS_CAFE_GAME_URL = "https://obneao-indy.github.io/-Caf-/";
+const CHILLAS_STAFF_SIGNATURE_STORAGE = "JUJU_CHILLAS_STAFF_SIGNATURE";
 const usernameFontOptions = [
   { id: "hina", label: "\u3072\u306a\u660e\u671d", note: "\u6a19\u6e96", className: "username-font-hina", cssStack: "\"JujuHinaMincho\", \"Yu Mincho\", serif", minRank: 1 },
   { id: "zero", label: "\u96f6\u30b4\u30b7\u30c3\u30af", note: "\u30e9\u30f3\u30af2\u3067\u89e3\u653e", className: "username-font-zero", cssStack: "\"JujuZeroGothic\", \"JujuHinaMincho\", serif", minRank: 2 },
@@ -693,6 +696,49 @@ async function ensureSpecialCards() {
   return Number(result.data?.granted || 0);
 }
 
+async function ensureChillasCafeDebugCard() {
+  if (!supabase) return 0;
+  const result = await supabase.rpc("ensure_chillas_cafe_debug_card");
+  if (result.error) {
+    if (isMissingDbObject(result.error)) return 0;
+    throw result.error;
+  }
+  return Number(result.data?.granted || 0);
+}
+
+function chillasStaffSignatureFromReturn() {
+  const params = new URLSearchParams(location.search);
+  const value =
+    params.get("chillas_staff_signature") ||
+    params.get("chillas_staff_name") ||
+    params.get("staff_signature") ||
+    params.get("staff_name") ||
+    "";
+  const signature = String(value || "").trim().slice(0, 48);
+  if (signature) {
+    localStorage.setItem(CHILLAS_STAFF_SIGNATURE_STORAGE, signature);
+    params.delete("chillas_staff_signature");
+    params.delete("chillas_staff_name");
+    params.delete("staff_signature");
+    params.delete("staff_name");
+    const nextSearch = params.toString();
+    history.replaceState({}, "", `${location.pathname}${nextSearch ? `?${nextSearch}` : ""}${location.hash}`);
+    return signature;
+  }
+  return String(localStorage.getItem(CHILLAS_STAFF_SIGNATURE_STORAGE) || "").trim().slice(0, 48);
+}
+
+async function syncChillasStaffSignature(userId) {
+  const signature = chillasStaffSignatureFromReturn();
+  if (!signature || !supabase || !userId) return;
+  const { error } = await supabase.rpc("set_chillas_staff_signature", { p_signature: signature });
+  if (error) {
+    if (isMissingDbObject(error)) return;
+    throw error;
+  }
+  localStorage.removeItem(CHILLAS_STAFF_SIGNATURE_STORAGE);
+}
+
 async function cleanupUserCoupons(userId) {
   if (!supabase || !userId) return;
   const key = `JUJU_COUPON_CLEANUP_${userId}_${new Date().toISOString().slice(0, 10)}`;
@@ -834,6 +880,8 @@ async function loadMyData() {
   const user = await ensureUserProfile(current.user);
   const grantedCouponCount = await ensureLifecycleCoupons();
   const grantedSpecialCardCount = await ensureSpecialCards();
+  const grantedChillasCardCount = await ensureChillasCafeDebugCard();
+  await syncChillasStaffSignature(user.id);
   await cleanupUserCoupons(user.id);
   const { data: profile } = await supabase
     .from("app_profiles")
@@ -878,7 +926,7 @@ async function loadMyData() {
     newsReads: newsReads.data || [],
     unreadNewsCount,
     unreadCouponCount: unreadCouponCount(coupons.data || [], user.id, grantedCouponCount),
-    unreadSpecialCardCount: unreadSpecialCardCount(specialCards.data || [], user.id, grantedSpecialCardCount)
+    unreadSpecialCardCount: unreadSpecialCardCount(specialCards.data || [], user.id, grantedSpecialCardCount + grantedChillasCardCount)
   };
   myDataCache = { authUserId: current.user.id, at: Date.now(), data };
   return data;
@@ -2733,25 +2781,51 @@ function specialCardMetadata(card) {
   return card.metadata;
 }
 
+function specialCardEntryMetadata(entry) {
+  if (!entry?.metadata) return {};
+  if (typeof entry.metadata === "string") {
+    try {
+      return JSON.parse(entry.metadata);
+    } catch {
+      return {};
+    }
+  }
+  return entry.metadata;
+}
+
 function isGhostArCard(card) {
   const metadata = specialCardMetadata(card);
   return card?.slug === GHOST_AR_CARD_SLUG || metadata.interaction === "ghost_ar";
+}
+
+function isChillasCafeCard(card) {
+  const metadata = specialCardMetadata(card);
+  return card?.slug === CHILLAS_CAFE_CARD_SLUG || metadata.interaction === "chillas_cafe_game";
 }
 
 function specialCardDisplayTitle(card) {
   return isGhostArCard(card) ? "おばけ" : card?.title || "特別カード";
 }
 
-function specialCardFace(card, face) {
+function chillasStaffSignature(entry) {
+  const metadata = specialCardEntryMetadata(entry);
+  return String(metadata.staff_signature || localStorage.getItem(CHILLAS_STAFF_SIGNATURE_STORAGE) || "").trim();
+}
+
+function specialCardFace(card, face, entry = {}) {
   const image = face === "front" ? card.front_image_url : card.back_image_url;
   const title = specialCardDisplayTitle(card);
   const alt = `${title} ${face === "front" ? "表" : "裏"}`;
   const ghostAr = face === "front" && isGhostArCard(card);
+  const chillasCafe = isChillasCafeCard(card);
+  const signature = chillasStaffSignature(entry);
   return html`
     <div class="special-card-face ${face}">
       ${image ? `<img src="${escapeHtml(image)}" alt="${escapeHtml(alt)}" />` : `<div class="special-card-placeholder">${escapeHtml(title)}</div>`}
       ${ghostAr ? `<button type="button" class="special-card-ghost-hotspot" data-action="open-ghost-card-prompt" data-ghost-card-title="${escapeHtml(title)}" data-ghost-card-url="${escapeHtml(card.external_url || "")}" aria-label="お化けを見つけた？" data-no-flip></button>` : ""}
-      ${face === "back" && card.external_url ? `<a class="special-card-account" href="${escapeHtml(card.external_url)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(card.external_label || "@kareranituite")} を開く" data-no-flip>${escapeHtml(card.external_label || "@kareranituite")}</a>` : ""}
+      ${chillasCafe && face === "front" ? `<button type="button" class="special-card-game-button" data-action="open-chillas-game-prompt" data-game-url="${escapeHtml(card.external_url || CHILLAS_CAFE_GAME_URL)}" aria-label="ゲームスタート" data-no-flip>ゲームスタート</button>` : ""}
+      ${chillasCafe && face === "back" ? `<div class="special-card-signature" data-no-flip><span>スタッフ記名</span><strong>${escapeHtml(signature || "未記入")}</strong></div>` : ""}
+      ${face === "back" && card.external_url && !chillasCafe ? `<a class="special-card-account" href="${escapeHtml(card.external_url)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(card.external_label || "@kareranituite")} を開く" data-no-flip>${escapeHtml(card.external_label || "@kareranituite")}</a>` : ""}
     </div>
   `;
 }
@@ -2759,13 +2833,33 @@ function specialCardFace(card, face) {
 function specialCardItem(entry, index = 0) {
   const card = specialCardMeta(entry);
   const ghostAr = isGhostArCard(card);
+  const metadata = specialCardMetadata(card);
+  const aspect = metadata.aspect_ratio || (ghostAr ? "1 / 1" : "1515 / 915");
   return html`
-    <article class="special-card-shell ${ghostAr ? "ghost-ar-card" : ""}" data-action="flip-special-card" data-special-card-id="${escapeHtml(entry.id || card.id || String(index))}">
+    <article class="special-card-shell ${ghostAr ? "ghost-ar-card" : ""} ${isChillasCafeCard(card) ? "chillas-cafe-card" : ""}" style="--special-card-aspect: ${escapeHtml(aspect)};" data-action="flip-special-card" data-special-card-id="${escapeHtml(entry.id || card.id || String(index))}">
       <div class="special-card-stage">
-        ${specialCardFace(card, "front")}
-        ${ghostAr ? "" : specialCardFace(card, "back")}
+        ${specialCardFace(card, "front", entry)}
+        ${ghostAr ? "" : specialCardFace(card, "back", entry)}
       </div>
     </article>
+  `;
+}
+
+function chillasGamePromptModal(prompt) {
+  return html`
+    <div class="modal-backdrop" data-action="close-chillas-game-prompt">
+      <section class="coupon-modal ghost-card-modal">
+        <div class="modal-head">
+          <h2>ゲームスタート</h2>
+          <button type="button" data-action="close-chillas-game-prompt">閉じる</button>
+        </div>
+        <p class="ghost-card-question">ゲームを開始しますか？</p>
+        <div class="ghost-card-actions">
+          <button type="button" class="primary" data-action="launch-chillas-game" data-game-url="${escapeHtml(prompt.url || CHILLAS_CAFE_GAME_URL)}">はい</button>
+          <button type="button" data-action="close-chillas-game-prompt">いいえ</button>
+        </div>
+      </section>
+    </div>
   `;
 }
 
@@ -2800,6 +2894,7 @@ async function viewSpecialCards() {
       </section>
     ` : `<section class="empty-state">\u73fe\u5728\u8868\u793a\u3067\u304d\u308b\u7279\u5225\u30ab\u30fc\u30c9\u306f\u3042\u308a\u307e\u305b\u3093\u3002</section>`}
     ${state.ghostCardPrompt ? ghostCardPromptModal(state.ghostCardPrompt) : ""}
+    ${state.chillasGamePrompt ? chillasGamePromptModal(state.chillasGamePrompt) : ""}
   `);
 }
 
@@ -3319,6 +3414,24 @@ async function loadAdminSpecialCards() {
       unlock_condition_label: "デバッグ期間中、JUJU-000001のみ",
       metadata: { interaction: "ghost_ar", version: 1 },
       sort_order: 20
+    }, {
+      id: "demo-chillas-cafe-card",
+      slug: CHILLAS_CAFE_CARD_SLUG,
+      title: "チラズアートコラボCafé 記念カード",
+      description: "チラズアートコラボCaféのクローズドデバッグ用記念カードです。",
+      card_type: "closed_debug_game",
+      front_image_url: "assets/special-cards/chillas-cafe-front.jpg",
+      back_image_url: "assets/special-cards/chillas-cafe-back.jpg",
+      external_url: CHILLAS_CAFE_GAME_URL,
+      external_label: "ゲームスタート",
+      unlock_condition_label: "クローズドデバッグ: JUJU-000001〜JUJU-000005",
+      metadata: {
+        interaction: "chillas_cafe_game",
+        aspect_ratio: "1200 / 628",
+        debug_staff_member_numbers: ["JUJU-000001", "JUJU-000002", "JUJU-000003", "JUJU-000004", "JUJU-000005"],
+        version: 1
+      },
+      sort_order: 30
     }];
   }
   await loadAdminData(null, { includeUsers: false, includeActivity: false, includeCoupons: false, includePurchasePermissions: false });
@@ -3685,6 +3798,24 @@ document.addEventListener("click", (event) => {
     state = { ...state, ghostCardPrompt: null };
     render();
   }
+  if (action.dataset.action === "open-chillas-game-prompt") {
+    state = {
+      ...state,
+      chillasGamePrompt: { url: action.dataset.gameUrl || CHILLAS_CAFE_GAME_URL }
+    };
+    render();
+  }
+  if (action.dataset.action === "close-chillas-game-prompt") {
+    if (event.target.closest(".ghost-card-modal") && !event.target.closest("button")) return;
+    state = { ...state, chillasGamePrompt: null };
+    render();
+  }
+  if (action.dataset.action === "launch-chillas-game") {
+    const url = action.dataset.gameUrl || state.chillasGamePrompt?.url || CHILLAS_CAFE_GAME_URL;
+    window.open(url, "_blank", "noopener,noreferrer");
+    state = { ...state, chillasGamePrompt: null };
+    render();
+  }
   if (action.dataset.action === "close-icon-editor") {
     if (event.target.closest(".icon-editor-modal") && !event.target.closest("button")) return;
     iconDrag = null;
@@ -3779,6 +3910,7 @@ async function bootApp() {
   app.innerHTML = `<main class="user-main"><section class="empty-state"><h1>cafeジュジュ</h1><p>会員証を読み込んでいます。</p></section></main>`;
   try {
     await withTimeout(initSupabase(), 6000, "通信初期化に時間がかかっています。もう一度開き直してください。");
+    chillasStaffSignatureFromReturn();
     await withTimeout(consumePasswordRecoveryCode(), 6000, "パスワード再設定リンクの確認に時間がかかっています。もう一度開き直してください。");
   } catch (error) {
     state = { ...state, error: appErrorMessage(error) };
